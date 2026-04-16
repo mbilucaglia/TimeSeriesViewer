@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Subject Time-Series Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="wrap">
+  <h1>Subject Time-Series Viewer</h1>
+  <p>
+    Open this page in a browser, upload one video and either a long-format multi-subject file
+    or multiple per-subject CSV/TXT files, then select subjects and compute the average for
+    a chosen metric.
+  </p>
+
+  <div class="app-layout">
+    <div class="main-panel">
+      <div class="card">
+        <div class="section-title">1) Plot</div>
+        <div class="small label-gap">
+          Click anywhere horizontally inside the plot area to move the vertical cursor and seek the video.
+          If you zoom, the visible window is preserved and auto-scrolls during playback.
+        </div>
+        <div id="plot"></div>
+      </div>
+
+      <div class="card mt16">
+        <div class="section-title">2) Video</div>
+        <video id="video" controls></video>
+        <p class="small mt12">
+          The video is full width and synchronized with the plot cursor.
+        </p>
+      </div>
+    </div>
+
+    <div class="card sidebar">
+      <div class="row space-between">
+        <div>
+          <div class="section-title">Controls</div>
+          <div class="small">
+            Upload files, select metric, choose subjects, and export averages.
+          </div>
+        </div>
+        <span class="pill">No install needed</span>
+      </div>
+
+      <div class="row">
+        <label class="file">
+          Upload signals
+          <input id="signalFiles" type="file" accept=".csv,.txt,.tsv" multiple />
+        </label>
+
+        <label class="file">
+          Upload video
+          <input id="videoFile" type="file" accept="video/*" />
+        </label>
+      </div>
+
+      <div class="row mt12">
+        <button id="selectAllBtn">Select all</button>
+        <button id="selectNoneBtn">Select none</button>
+        <button id="downloadAverageBtn">Export average CSV</button>
+      </div>
+
+      <div class="controls-grid">
+        <div>
+          <div class="small label-gap">Metric to display / average</div>
+          <select id="metricSelect"></select>
+        </div>
+
+        <div>
+          <div class="small label-gap">Display mode</div>
+          <div class="row">
+            <label><input type="checkbox" id="showIndividuals" checked /> Show individual traces</label>
+            <label><input type="checkbox" id="showAverage" checked /> Show average</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="pill" id="metaSubjects">Subjects: 0</div>
+        <div class="pill" id="metaMetrics">Metrics: 0</div>
+        <div class="pill" id="metaSelected">Selected: 0</div>
+      </div>
+
+      <div id="errors" class="danger mt12"></div>
+
+      <div class="sidebar-table-wrap">
+        <table id="subjectsTable">
+          <thead>
+            <tr>
+              <th>On</th>
+              <th>File</th>
+              <th>Subject</th>
+              <th>Metrics</th>
+              <th>N</th>
+              <th>Range</th>
+              <th>Del</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="plot.js"></script>
+<script src="data.js"></script>
+
+</body>
+</html>

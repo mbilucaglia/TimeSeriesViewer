@@ -1,0 +1,188 @@
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --line: #d9deea;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --danger: #b91c1c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 20px; }
+h1 { margin: 0 0 8px; font-size: 28px; }
+p { margin: 0 0 14px; color: var(--muted); }
+.app-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+.main-panel {
+  min-width: 0;
+}
+.sidebar {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+}
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sidebar-table-wrap {
+  margin-top: 12px;
+  overflow-y: auto;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+}
+.sidebar-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+}
+.space-between { justify-content: space-between; margin-bottom: 10px; }
+label.file { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 600; }
+input[type="file"] { display: none; }
+button, select { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: white; cursor: pointer; font-weight: 600; }
+button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: middle; }
+th { color: var(--muted); font-weight: 600; }
+td input[type="text"] { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); }
+#plot { width: 100%; height: 560px; }
+#video { width: 100%; max-height: 520px; background: #000; border-radius: 12px; display: block; }
+.small { color: var(--muted); font-size: 13px; }
+.danger { color: var(--danger); white-space: pre-wrap; }
+.pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); background: #fff; }
+.section-title { font-size: 18px; margin: 0 0 12px; }
+.controls-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.label-gap { margin-bottom: 6px; }
+.mt12 { margin-top: 12px; }
+.mt16 { margin-top: 16px; }
+@media (max-width: 980px) {
+  .app-layout,
+  .controls-grid,
+  .meta {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sidebar-table-wrap {
+    max-height: none;
+  }
+}
+
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sidebar-table-wrap {
+    max-height: none;
+  }
+}
+
+/* More compact sidebar table */
+#subjectsTable {
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+#subjectsTable th,
+#subjectsTable td {
+  padding: 6px 6px;
+  vertical-align: top;
+}
+
+#subjectsTable th {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+#subjectsTable td {
+  line-height: 1.25;
+}
+
+/* Column sizing */
+#subjectsTable th:nth-child(1),
+#subjectsTable td:nth-child(1) {
+  width: 44px;
+  text-align: center;
+}
+
+#subjectsTable th:nth-child(2),
+#subjectsTable td:nth-child(2) {
+  width: 110px;
+}
+
+#subjectsTable th:nth-child(3),
+#subjectsTable td:nth-child(3) {
+  width: 90px;
+}
+
+#subjectsTable th:nth-child(4),
+#subjectsTable td:nth-child(4) {
+  width: 110px;
+}
+
+#subjectsTable th:nth-child(5),
+#subjectsTable td:nth-child(5) {
+  width: 52px;
+  text-align: right;
+}
+
+#subjectsTable th:nth-child(6),
+#subjectsTable td:nth-child(6) {
+  width: 84px;
+  text-align: right;
+}
+
+#subjectsTable th:nth-child(7),
+#subjectsTable td:nth-child(7) {
+  width: 54px;
+  text-align: center;
+}
+
+/* Better wrapping for long filenames / metrics */
+#subjectsTable td:nth-child(2),
+#subjectsTable td:nth-child(4) {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* More compact text input in Subject ID column */
+#subjectsTable td input[type="text"] {
+  padding: 4px 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+/* Compact remove button */
+#subjectsTable td button {
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 8px;
+}
