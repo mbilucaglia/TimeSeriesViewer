@@ -90,7 +90,7 @@ function makePlot() {
     template: 'plotly_white',
 
     // This is the missing pan configuration
-    dragmode: 'false',
+    dragmode: false,
 
     xaxis: {
   title: 'Time',
