@@ -5,111 +5,581 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Subject Time-Series Viewer</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="styles.css" />
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --line: #d9deea;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0 0 14px; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 16px; align-items: start; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 4px 18px rgba(0,0,0,0.04); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    label.file { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 600; }
+    input[type="file"] { display: none; }
+    button, select {
+      padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: white; cursor: pointer; font-weight: 600;
+    }
+    button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; }
+    td input[type="text"] { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); }
+    #plot { width: 100%; height: 560px; }
+    #video { width: 100%; max-height: 360px; background: #000; border-radius: 12px; }
+    .small { color: var(--muted); font-size: 13px; }
+    .danger { color: var(--danger); white-space: pre-wrap; }
+    .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); background: #fff; }
+    .section-title { font-size: 18px; margin: 0 0 12px; }
+    .controls-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:10px; margin-top: 12px; }
+    .meta { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:10px; margin-top: 12px; }
+    @media (max-width: 980px) { .grid, .controls-grid, .meta { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Subject Time-Series Viewer</h1>
-  <p>
-    Open this page in a browser, upload one video and either a long-format multi-subject file
-    or multiple per-subject CSV/TXT files, then select subjects and compute the average for
-    a chosen metric.
-  </p>
+  <div class="wrap">
+    <h1>Subject Time-Series Viewer</h1>
+    <p>Single-file prototype. Open this HTML in a browser, upload one video and either a long-format multi-subject file or multiple per-subject CSV/TXT files, then select subjects and compute the average for a chosen metric.</p>
 
-  <div class="app-layout">
-    <div class="main-panel">
+    <div class="grid">
       <div class="card">
-        <div class="section-title">1) Plot</div>
-        <div class="small label-gap">
-          Click anywhere horizontally inside the plot area to move the vertical cursor and seek the video.
-          If you zoom, the visible window is preserved and auto-scrolls during playback.
+        <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+          <div>
+            <div class="section-title">1) Upload data</div>
+            <div class="small">Supported format: a single CSV/TXT file in long format with <b>time_s, subject_id, metric_*</b> columns.</div>
+          </div>
+          <span class="pill">No install needed</span>
         </div>
-        <div id="plot"></div>
-      </div>
 
-      <div class="card mt16">
-        <div class="section-title">2) Video</div>
-        <video id="video" controls></video>
-        <p class="small mt12">
-          The video is full width and synchronized with the plot cursor.
-        </p>
-      </div>
-    </div>
+        <div class="row">
+          <label class="file">
+            Upload signals
+            <input id="signalFiles" type="file" accept=".csv,.txt,.tsv" />
+          </label>
+          <label class="file">
+            Upload video
+            <input id="videoFile" type="file" accept="video/*" />
+          </label>
+          <button id="selectAllBtn">Select all</button>
+          <button id="selectNoneBtn">Select none</button>
+          <button id="downloadAverageBtn">Export average CSV</button>
+        </div>
 
-    <div class="card sidebar">
-      <div class="row space-between">
-        <div>
-          <div class="section-title">Controls</div>
-          <div class="small">
-            Upload files, select metric, choose subjects, and export averages.
+        <div class="controls-grid">
+          <div>
+            <div class="small" style="margin-bottom: 6px;">Metric to display / average</div>
+            <select id="metricSelect"></select>
+          </div>
+          <div>
+            <div class="small" style="margin-bottom: 6px;">Display mode</div>
+            <div class="row">
+              <label><input type="checkbox" id="showIndividuals" checked /> Show individual traces</label>
+              <label><input type="checkbox" id="showAverage" checked /> Show average</label>
+            </div>
           </div>
         </div>
-        <span class="pill">No install needed</span>
-      </div>
 
-      <div class="row">
-        <label class="file">
-          Upload signals
-          <input id="signalFiles" type="file" accept=".csv,.txt,.tsv" multiple />
-        </label>
-
-        <label class="file">
-          Upload video
-          <input id="videoFile" type="file" accept="video/*" />
-        </label>
-      </div>
-
-      <div class="row mt12">
-        <button id="selectAllBtn">Select all</button>
-        <button id="selectNoneBtn">Select none</button>
-        <button id="downloadAverageBtn">Export average CSV</button>
-      </div>
-
-      <div class="controls-grid">
-        <div>
-          <div class="small label-gap">Metric to display / average</div>
-          <select id="metricSelect"></select>
+        <div class="meta">
+          <div class="pill" id="metaSubjects">Subjects: 0</div>
+          <div class="pill" id="metaMetrics">Metrics: 0</div>
+          <div class="pill" id="metaSelected">Selected: 0</div>
         </div>
 
-        <div>
-          <div class="small label-gap">Display mode</div>
-          <div class="row">
-            <label><input type="checkbox" id="showIndividuals" checked /> Show individual traces</label>
-            <label><input type="checkbox" id="showAverage" checked /> Show average</label>
-          </div>
-        </div>
-      </div>
-
-      <div class="meta">
-        <div class="pill" id="metaSubjects">Subjects: 0</div>
-        <div class="pill" id="metaMetrics">Metrics: 0</div>
-        <div class="pill" id="metaSelected">Selected: 0</div>
-      </div>
-
-      <div id="errors" class="danger mt12"></div>
-
-      <div class="sidebar-table-wrap">
+        <div id="errors" class="danger" style="margin-top: 12px;"></div>
         <table id="subjectsTable">
           <thead>
             <tr>
-              <th>On</th>
-              <th>File</th>
-              <th>Subject</th>
+              <th>Select</th>
+              <th>Subject ID</th>
               <th>Metrics</th>
-              <th>N</th>
-              <th>Range</th>
-              <th>Del</th>
+              <th>Points</th>
+              <th>Time range</th>
+              <th>Remove</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
+
+      <div class="card">
+        <div class="section-title">2) Video</div>
+        <video id="video" controls></video>
+        <p class="small" style="margin-top: 12px;">
+          The video time is used as the sync cursor on the plot. In this draft, averaging works when selected subjects share the same time samples for the chosen metric.
+        </p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <div class="section-title">3) Plot</div>
+      <div id="plot"></div>
     </div>
   </div>
-</div>
 
-<script src="plot.js"></script>
-<script src="data.js"></script>
+  <script>
+    const state = {
+      subjects: [],
+      videoUrl: null,
+      currentTime: 0,
+      metrics: [],
+      selectedMetric: '',
+      plotRange: null
+    };
 
+    const signalFilesInput = document.getElementById('signalFiles');
+    const videoFileInput = document.getElementById('videoFile');
+    const videoEl = document.getElementById('video');
+    const errorsEl = document.getElementById('errors');
+    const tbody = document.querySelector('#subjectsTable tbody');
+    const showIndividualsEl = document.getElementById('showIndividuals');
+    const showAverageEl = document.getElementById('showAverage');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const selectNoneBtn = document.getElementById('selectNoneBtn');
+    const downloadAverageBtn = document.getElementById('downloadAverageBtn');
+    const metricSelectEl = document.getElementById('metricSelect');
+    const metaSubjectsEl = document.getElementById('metaSubjects');
+    const metaMetricsEl = document.getElementById('metaMetrics');
+    const metaSelectedEl = document.getElementById('metaSelected');
+
+    function detectDelimiter(text, filename) {
+      const lower = filename.toLowerCase();
+      if (lower.endsWith('.tsv')) return '\t';
+      const commas = (text.match(/,/g) || []).length;
+      const tabs = (text.match(/\t/g) || []).length;
+      const semis = (text.match(/;/g) || []).length;
+      if (tabs > commas && tabs > semis) return '\t';
+      if (semis > commas) return ';';
+      return ',';
+    }
+
+    function parseTable(text, delimiter) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      if (lines.length < 2) throw new Error('File needs a header row and at least one data row.');
+      const headers = lines[0].split(delimiter).map(v => v.trim());
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(delimiter).map(v => v.trim());
+        if (cols.length !== headers.length) continue;
+        const row = {};
+        headers.forEach((h, j) => row[h] = cols[j]);
+        rows.push(row);
+      }
+      return { headers, rows };
+    }
+
+    function normalizeMetricName(name) {
+      return String(name).trim();
+    }
+
+    function buildSubject(subjectId, filename, dataByMetric) {
+      const metrics = Object.keys(dataByMetric);
+      const firstMetric = metrics[0];
+      const points = firstMetric ? dataByMetric[firstMetric].length : 0;
+      const firstSeries = firstMetric ? dataByMetric[firstMetric] : [];
+      return {
+        id: crypto.randomUUID(),
+        filename,
+        subjectId,
+        selected: true,
+        metrics,
+        dataByMetric,
+        points,
+        minT: firstSeries[0]?.time ?? '',
+        maxT: firstSeries[firstSeries.length - 1]?.time ?? ''
+      };
+    }
+
+    function parseLongFormat(headers, rows, filename) {
+      const lowerMap = Object.fromEntries(headers.map(h => [h.toLowerCase(), h]));
+      const timeCol = lowerMap['time_s'] || lowerMap['time'] || headers[0];
+      const subjectCol = lowerMap['subject_id'] || lowerMap['subject'] || headers[1];
+      if (!timeCol || !subjectCol) throw new Error('Long format needs time and subject_id columns.');
+      const metricCols = headers.filter(h => h !== timeCol && h !== subjectCol);
+      if (!metricCols.length) throw new Error('No metric columns found.');
+
+      const grouped = new Map();
+      for (const row of rows) {
+        const subjectId = String(row[subjectCol] || '').trim();
+        const t = Number(row[timeCol]);
+        if (!subjectId || !Number.isFinite(t)) continue;
+        if (!grouped.has(subjectId)) grouped.set(subjectId, {});
+        const metricMap = grouped.get(subjectId);
+        for (const metric of metricCols) {
+          const val = Number(row[metric]);
+          if (!Number.isFinite(val)) continue;
+          if (!metricMap[metric]) metricMap[metric] = [];
+          metricMap[metric].push({ time: t, value: val });
+        }
+      }
+
+      const subjects = [];
+      for (const [subjectId, dataByMetric] of grouped.entries()) {
+        for (const metric of Object.keys(dataByMetric)) {
+          dataByMetric[metric].sort((a, b) => a.time - b.time);
+        }
+        subjects.push(buildSubject(subjectId, filename, dataByMetric));
+      }
+      return subjects;
+    }
+
+    function parseWidePerSubject(headers, rows, filename) {
+      const timeCol = headers[0];
+      const metricCols = headers.slice(1).map(normalizeMetricName).filter(Boolean);
+      if (!metricCols.length) throw new Error('Per-subject files need at least one metric column after time.');
+      const dataByMetric = {};
+      for (const metric of metricCols) dataByMetric[metric] = [];
+
+      for (const row of rows) {
+        const t = Number(row[timeCol]);
+        if (!Number.isFinite(t)) continue;
+        for (const metric of metricCols) {
+          const val = Number(row[metric]);
+          if (Number.isFinite(val)) dataByMetric[metric].push({ time: t, value: val });
+        }
+      }
+      for (const metric of metricCols) dataByMetric[metric].sort((a, b) => a.time - b.time);
+      const subjectId = filename.replace(/\.[^.]+$/, '');
+      return [buildSubject(subjectId, filename, dataByMetric)];
+    }
+
+    async function readSignalFile(file) {
+      const text = await file.text();
+      const delimiter = detectDelimiter(text.slice(0, 2000), file.name);
+      const { headers, rows } = parseTable(text, delimiter);
+      const lowerHeaders = headers.map(h => h.toLowerCase());
+      const isLong = lowerHeaders.includes('subject_id') || lowerHeaders.includes('subject');
+      if (!isLong) {
+        throw new Error('This version accepts a single long-format file with time_s, subject_id, and metric columns.');
+      }
+      return parseLongFormat(headers, rows, file.name);
+    }
+
+    function refreshMetrics() {
+      const metricSet = new Set();
+      state.subjects.forEach(s => s.metrics.forEach(m => metricSet.add(m)));
+      state.metrics = [...metricSet];
+      if (!state.metrics.includes(state.selectedMetric)) {
+        state.selectedMetric = state.metrics[0] || '';
+      }
+      metricSelectEl.innerHTML = state.metrics.map(m => `<option value="${escapeAttr(m)}" ${m === state.selectedMetric ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
+    }
+
+    function refreshMeta() {
+      metaSubjectsEl.textContent = `Subjects: ${state.subjects.length}`;
+      metaMetricsEl.textContent = `Metrics: ${state.metrics.length}`;
+      metaSelectedEl.textContent = `Selected: ${getSelectedSubjects().length}`;
+    }
+
+    function renderTable() {
+      tbody.innerHTML = '';
+      state.subjects.forEach((subject, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" ${subject.selected ? 'checked' : ''} data-action="toggle" data-index="${index}" /></td>
+          <td><input type="text" value="${escapeAttr(subject.subjectId)}" data-action="rename" data-index="${index}" /></td>
+          <td>${escapeHtml(subject.metrics.join(', '))}</td>
+          <td>${subject.points}</td>
+          <td>${subject.minT} – ${subject.maxT}</td>
+          <td><button data-action="remove" data-index="${index}">Remove</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      refreshMeta();
+    }
+
+    function getSelectedSubjects() {
+      return state.subjects.filter(s => s.selected);
+    }
+
+    function getSeries(subject, metric) {
+      return subject.dataByMetric[metric] || [];
+    }
+
+    function getSignalMaxTime(metric) {
+      const selected = getSelectedSubjects();
+      let maxT = 0;
+      for (const subject of selected) {
+        const series = getSeries(subject, metric);
+        if (!series.length) continue;
+        const lastT = series[series.length - 1].time;
+        if (Number.isFinite(lastT)) maxT = Math.max(maxT, lastT);
+      }
+      return maxT;
+    }
+
+    function saveCurrentPlotRange() {
+      const gd = document.getElementById('plot');
+      const xaxis = gd?._fullLayout?.xaxis;
+      if (!xaxis || !Array.isArray(xaxis.range)) return;
+      const x0 = Number(xaxis.range[0]);
+      const x1 = Number(xaxis.range[1]);
+      if (Number.isFinite(x0) && Number.isFinite(x1) && x1 > x0) {
+        state.plotRange = [x0, x1];
+      }
+    }
+
+    function intersectTimes(selected, metric) {
+      const valid = selected.filter(s => getSeries(s, metric).length);
+      if (!valid.length) return [];
+      let common = new Set(valid[0].dataByMetric[metric].map(d => d.time));
+      for (let i = 1; i < valid.length; i++) {
+        const set = new Set(valid[i].dataByMetric[metric].map(d => d.time));
+        common = new Set([...common].filter(t => set.has(t)));
+      }
+      return [...common].sort((a, b) => a - b);
+    }
+
+    function computeAverage(selected, metric) {
+      const usable = selected.filter(s => getSeries(s, metric).length);
+      const times = intersectTimes(usable, metric);
+      return times.map(t => {
+        let sum = 0;
+        for (const subject of usable) {
+          const point = subject.dataByMetric[metric].find(d => d.time === t);
+          sum += point.value;
+        }
+        return { time: t, value: sum / usable.length };
+      });
+    }
+
+    function makePlot() {
+      saveCurrentPlotRange();
+
+      const selected = getSelectedSubjects();
+      const metric = state.selectedMetric;
+      const traces = [];
+      const showIndividuals = showIndividualsEl.checked;
+      const showAverage = showAverageEl.checked;
+
+      if (metric && showIndividuals) {
+        for (const subject of selected) {
+          const series = getSeries(subject, metric);
+          if (!series.length) continue;
+          traces.push({
+            x: series.map(d => d.time),
+            y: series.map(d => d.value),
+            mode: 'lines',
+            type: 'scatter',
+            name: subject.subjectId,
+            opacity: 0.45
+          });
+        }
+      }
+
+      if (metric && showAverage) {
+        const avg = computeAverage(selected, metric);
+        if (avg.length) {
+          traces.push({
+            x: avg.map(d => d.time),
+            y: avg.map(d => d.value),
+            mode: 'lines',
+            type: 'scatter',
+            name: `${metric} average`,
+            line: { width: 4 }
+          });
+        }
+      }
+
+      const title = metric ? `Metric: ${metric}` : 'Load data to begin';
+      const maxT = getSignalMaxTime(metric);
+      state.currentTime = Math.max(0, Math.min(state.currentTime, maxT || 0));
+
+      let xRange = [0, maxT || 1];
+      if (state.plotRange) {
+        let [saved0, saved1] = state.plotRange;
+        const windowSize = saved1 - saved0;
+        if (windowSize > 0) {
+          saved0 = Math.max(0, saved0);
+          saved1 = Math.min(maxT || 1, saved1);
+          if (saved1 <= saved0) {
+            saved1 = Math.min(maxT || 1, saved0 + windowSize);
+            saved0 = Math.max(0, saved1 - windowSize);
+          }
+          xRange = [saved0, saved1];
+        }
+      }
+
+      const layout = {
+        title,
+        template: 'plotly_white',
+        xaxis: { title: 'Time', range: xRange },
+        yaxis: { title: metric || 'Value' },
+        hovermode: 'x unified',
+        shapes: [{
+          type: 'line',
+          x0: state.currentTime,
+          x1: state.currentTime,
+          y0: 0,
+          y1: 1,
+          yref: 'paper',
+          line: { width: 2, dash: 'dot' }
+        }],
+        margin: { l: 60, r: 20, t: 50, b: 55 }
+      };
+
+      Plotly.react('plot', traces, layout, { responsive: true, displaylogo: false }).then((gd) => {
+        if (!gd.__relayoutHandlerAttached) {
+          gd.on('plotly_relayout', (eventData) => {
+            const x0 = Number(eventData['xaxis.range[0]']);
+            const x1 = Number(eventData['xaxis.range[1]']);
+            if (Number.isFinite(x0) && Number.isFinite(x1) && x1 > x0) {
+              state.plotRange = [x0, x1];
+            }
+            if (eventData['xaxis.autorange']) {
+              const newMaxT = getSignalMaxTime(state.selectedMetric);
+              state.plotRange = [0, newMaxT || 1];
+            }
+          });
+          gd.__relayoutHandlerAttached = true;
+        }
+      });
+    }
+
+    function updateCursor() {
+      const maxT = getSignalMaxTime(state.selectedMetric);
+      state.currentTime = Math.max(0, Math.min(state.currentTime, maxT || 0));
+      Plotly.relayout('plot', {
+        'shapes[0].x0': state.currentTime,
+        'shapes[0].x1': state.currentTime
+      }).catch(() => {});
+    }
+
+    function downloadText(filename, text) {
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportAverage() {
+      const selected = getSelectedSubjects();
+      const metric = state.selectedMetric;
+      if (!selected.length || !metric) {
+        errorsEl.textContent = 'Select at least one subject and one metric before exporting the average.';
+        return;
+      }
+      const avg = computeAverage(selected, metric);
+      if (!avg.length) {
+        errorsEl.textContent = 'The selected subjects do not share matching time values for this metric, so no average could be exported in this draft.';
+        return;
+      }
+      const csv = [`time,mean_${metric}`, ...avg.map(d => `${d.time},${d.value}`)].join('\n');
+      downloadText(`average_${metric}.csv`, csv);
+      errorsEl.textContent = '';
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(str) { return escapeHtml(str); }
+
+    signalFilesInput.addEventListener('change', async (event) => {
+      errorsEl.textContent = '';
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const result = await readSignalFile(file);
+        state.subjects = result;
+        refreshMetrics();
+        renderTable();
+        makePlot();
+      } catch (err) {
+        errorsEl.textContent = `${file.name}: ${err.message}`;
+      }
+
+      signalFilesInput.value = '';
+    });
+
+    videoFileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (state.videoUrl) URL.revokeObjectURL(state.videoUrl);
+      state.videoUrl = URL.createObjectURL(file);
+      videoEl.src = state.videoUrl;
+    });
+
+    metricSelectEl.addEventListener('change', () => {
+      saveCurrentPlotRange();
+      state.selectedMetric = metricSelectEl.value;
+      makePlot();
+    });
+
+    tbody.addEventListener('input', (event) => {
+      const action = event.target.dataset.action;
+      const index = Number(event.target.dataset.index);
+      if (!Number.isInteger(index)) return;
+      if (action === 'rename') {
+        state.subjects[index].subjectId = event.target.value.trim() || state.subjects[index].filename;
+        makePlot();
+      }
+    });
+
+    tbody.addEventListener('change', (event) => {
+      const action = event.target.dataset.action;
+      const index = Number(event.target.dataset.index);
+      if (!Number.isInteger(index)) return;
+      if (action === 'toggle') {
+        state.subjects[index].selected = event.target.checked;
+        refreshMeta();
+        makePlot();
+      }
+    });
+
+    tbody.addEventListener('click', (event) => {
+      const action = event.target.dataset.action;
+      const index = Number(event.target.dataset.index);
+      if (!Number.isInteger(index)) return;
+      if (action === 'remove') {
+        state.subjects.splice(index, 1);
+        refreshMetrics();
+        renderTable();
+        makePlot();
+      }
+    });
+
+    showIndividualsEl.addEventListener('change', makePlot);
+    showAverageEl.addEventListener('change', makePlot);
+    selectAllBtn.addEventListener('click', () => {
+      state.subjects.forEach(s => s.selected = true);
+      renderTable();
+      makePlot();
+    });
+    selectNoneBtn.addEventListener('click', () => {
+      state.subjects.forEach(s => s.selected = false);
+      renderTable();
+      makePlot();
+    });
+    downloadAverageBtn.addEventListener('click', exportAverage);
+
+    function tick() {
+      state.currentTime = videoEl.currentTime || 0;
+      updateCursor();
+      requestAnimationFrame(tick);
+    }
+
+    refreshMetrics();
+    renderTable();
+    makePlot();
+    tick();
+  </script>
 </body>
 </html>
