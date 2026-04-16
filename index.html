@@ -15,46 +15,183 @@
       --accent: #2563eb;
       --danger: #b91c1c;
     }
+
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }
     .wrap { max-width: 1320px; margin: 0 auto; padding: 20px; }
     h1 { margin: 0 0 8px; font-size: 28px; }
     p { margin: 0 0 14px; color: var(--muted); }
-    .grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 16px; align-items: start; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 4px 18px rgba(0,0,0,0.04); }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    label.file { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-weight: 600; }
-    input[type="file"] { display: none; }
-    button, select {
-      padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: white; cursor: pointer; font-weight: 600;
+
+    .app-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      grid-template-rows: auto 1fr;
+      grid-template-areas:
+        "video sidebar"
+        "plot  sidebar";
+      gap: 16px;
+      align-items: start;
     }
+
+    .video-panel {
+      grid-area: video;
+      min-width: 0;
+    }
+
+    .plot-panel {
+      grid-area: plot;
+      min-width: 0;
+    }
+
+    .sidebar {
+      grid-area: sidebar;
+      position: sticky;
+      top: 20px;
+      height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    label.file {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    input[type="file"] { display: none; }
+
+    button, select {
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
     button.primary { background: var(--accent); color: white; border-color: var(--accent); }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
+
     table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
     th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: middle; }
     th { color: var(--muted); font-weight: 600; }
     td input[type="text"] { width: 100%; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); }
+
     #plot { width: 100%; height: 560px; }
-    #video { width: 100%; max-height: 360px; background: #000; border-radius: 12px; }
+    #video { width: 100%; max-height: 360px; background: #000; border-radius: 12px; display: block; }
+
     .small { color: var(--muted); font-size: 13px; }
     .danger { color: var(--danger); white-space: pre-wrap; }
-    .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); background: #fff; }
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      background: #fff;
+    }
+
     .section-title { font-size: 18px; margin: 0 0 12px; }
-    .controls-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:10px; margin-top: 12px; }
-    .meta { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:10px; margin-top: 12px; }
-    @media (max-width: 980px) { .grid, .controls-grid, .meta { grid-template-columns: 1fr; } }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .sidebar-table-wrap {
+      margin-top: 12px;
+      overflow-y: auto;
+      overflow-x: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .sidebar-table-wrap thead th {
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      z-index: 1;
+    }
+
+    @media (max-width: 980px) {
+      .app-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+          "sidebar"
+          "video"
+          "plot";
+      }
+
+      .controls-grid,
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        overflow: visible;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Subject Time-Series Viewer</h1>
-    <p>Single-file prototype. Open this HTML in a browser, upload one video and either a long-format multi-subject file or multiple per-subject CSV/TXT files, then select subjects and compute the average for a chosen metric.</p>
+    <p>Single-file prototype. Open this HTML in a browser, upload one video and a long-format CSV/TXT file, then select subjects and compute the average for a chosen metric.</p>
 
-    <div class="grid">
-      <div class="card">
+    <div class="app-layout">
+      <div class="card video-panel">
+        <div class="section-title">1) Video</div>
+        <video id="video" controls></video>
+        <p class="small" style="margin-top: 12px;">
+          The video time is used as the sync cursor on the plot. In this draft, averaging works when selected subjects share the same time samples for the chosen metric.
+        </p>
+      </div>
+
+      <div class="card plot-panel">
+        <div class="section-title">2) Plot</div>
+        <div id="plot"></div>
+      </div>
+
+      <div class="card sidebar">
         <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
           <div>
-            <div class="section-title">1) Upload data</div>
+            <div class="section-title">3) Controls</div>
             <div class="small">Supported format: a single CSV/TXT file in long format with <b>time_s, subject_id, metric_*</b> columns.</div>
           </div>
           <span class="pill">No install needed</span>
@@ -95,33 +232,23 @@
         </div>
 
         <div id="errors" class="danger" style="margin-top: 12px;"></div>
-        <table id="subjectsTable">
-          <thead>
-            <tr>
-              <th>Select</th>
-              <th>Subject ID</th>
-              <th>Metrics</th>
-              <th>Points</th>
-              <th>Time range</th>
-              <th>Remove</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
 
-      <div class="card">
-        <div class="section-title">2) Video</div>
-        <video id="video" controls></video>
-        <p class="small" style="margin-top: 12px;">
-          The video time is used as the sync cursor on the plot. In this draft, averaging works when selected subjects share the same time samples for the chosen metric.
-        </p>
+        <div class="sidebar-table-wrap">
+          <table id="subjectsTable">
+            <thead>
+              <tr>
+                <th>Select</th>
+                <th>Subject ID</th>
+                <th>Metrics</th>
+                <th>Points</th>
+                <th>Time range</th>
+                <th>Remove</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
-    </div>
-
-    <div class="card" style="margin-top: 16px;">
-      <div class="section-title">3) Plot</div>
-      <div id="plot"></div>
     </div>
   </div>
 
