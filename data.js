@@ -66,11 +66,7 @@ function parseTable(text, delimiter) {
   return { headers, rows };
 }
 
-function normalizeMetricName(name) {
-  return String(name).trim();
-}
-
-function buildSubject(subjectId, filename, dataByMetric) {
+function buildSubject(subjectId, dataByMetric) {
   const metrics = Object.keys(dataByMetric);
   const firstMetric = metrics[0];
   const points = firstMetric ? dataByMetric[firstMetric].length : 0;
@@ -78,7 +74,6 @@ function buildSubject(subjectId, filename, dataByMetric) {
 
   return {
     id: crypto.randomUUID(),
-    filename,
     subjectId,
     selected: true,
     metrics,
@@ -89,20 +84,26 @@ function buildSubject(subjectId, filename, dataByMetric) {
   };
 }
 
-function parseLongFormat(headers, rows, filename) {
+function parseLongFormat(headers, rows) {
   const lowerMap = Object.fromEntries(headers.map(h => [h.toLowerCase(), h]));
   const timeCol = lowerMap['time_s'] || lowerMap['time'] || headers[0];
   const subjectCol = lowerMap['subject_id'] || lowerMap['subject'] || headers[1];
-  if (!timeCol || !subjectCol) throw new Error('Long format needs time and subject_id columns.');
+
+  if (!timeCol || !subjectCol) {
+    throw new Error('Long format needs time and subject_id columns.');
+  }
 
   const metricCols = headers.filter(h => h !== timeCol && h !== subjectCol);
-  if (!metricCols.length) throw new Error('No metric columns found.');
+  if (!metricCols.length) {
+    throw new Error('No metric columns found.');
+  }
 
   const grouped = new Map();
 
   for (const row of rows) {
     const subjectId = String(row[subjectCol] || '').trim();
     const t = Number(row[timeCol]);
+
     if (!subjectId || !Number.isFinite(t)) continue;
 
     if (!grouped.has(subjectId)) grouped.set(subjectId, {});
@@ -111,6 +112,7 @@ function parseLongFormat(headers, rows, filename) {
     for (const metric of metricCols) {
       const val = Number(row[metric]);
       if (!Number.isFinite(val)) continue;
+
       if (!metricMap[metric]) metricMap[metric] = [];
       metricMap[metric].push({ time: t, value: val });
     }
@@ -121,36 +123,10 @@ function parseLongFormat(headers, rows, filename) {
     for (const metric of Object.keys(dataByMetric)) {
       dataByMetric[metric].sort((a, b) => a.time - b.time);
     }
-    subjects.push(buildSubject(subjectId, filename, dataByMetric));
+    subjects.push(buildSubject(subjectId, dataByMetric));
   }
 
   return subjects;
-}
-
-function parseWidePerSubject(headers, rows, filename) {
-  const timeCol = headers[0];
-  const metricCols = headers.slice(1).map(normalizeMetricName).filter(Boolean);
-  if (!metricCols.length) throw new Error('Per-subject files need at least one metric column after time.');
-
-  const dataByMetric = {};
-  for (const metric of metricCols) dataByMetric[metric] = [];
-
-  for (const row of rows) {
-    const t = Number(row[timeCol]);
-    if (!Number.isFinite(t)) continue;
-
-    for (const metric of metricCols) {
-      const val = Number(row[metric]);
-      if (Number.isFinite(val)) dataByMetric[metric].push({ time: t, value: val });
-    }
-  }
-
-  for (const metric of metricCols) {
-    dataByMetric[metric].sort((a, b) => a.time - b.time);
-  }
-
-  const subjectId = filename.replace(/\.[^.]+$/, '');
-  return [buildSubject(subjectId, filename, dataByMetric)];
 }
 
 async function readSignalFile(file) {
@@ -160,7 +136,11 @@ async function readSignalFile(file) {
   const lowerHeaders = headers.map(h => h.toLowerCase());
   const isLong = lowerHeaders.includes('subject_id') || lowerHeaders.includes('subject');
 
-  return isLong ? parseLongFormat(headers, rows, file.name) : parseWidePerSubject(headers, rows, file.name);
+  if (!isLong) {
+    throw new Error('This version accepts only one long-format file with time_s, subject_id, and metric columns.');
+  }
+
+  return parseLongFormat(headers, rows);
 }
 
 function getSelectedSubjects() {
@@ -225,7 +205,6 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="checkbox" ${subject.selected ? 'checked' : ''} data-action="toggle" data-index="${index}" /></td>
-      <td>${escapeHtml(subject.filename)}</td>
       <td><input type="text" value="${escapeAttr(subject.subjectId)}" data-action="rename" data-index="${index}" /></td>
       <td>${escapeHtml(subject.metrics.join(', '))}</td>
       <td>${subject.points}</td>
@@ -270,25 +249,19 @@ function exportAverage() {
 
 signalFilesInput.addEventListener('change', async (event) => {
   errorsEl.textContent = '';
-  const files = [...event.target.files];
-  const added = [];
-  const errors = [];
+  const file = event.target.files[0];
+  if (!file) return;
 
-  for (const file of files) {
-    try {
-      const result = await readSignalFile(file);
-      added.push(...result);
-    } catch (err) {
-      errors.push(`${file.name}: ${err.message}`);
-    }
+  try {
+    const result = await readSignalFile(file);
+    state.subjects = result;
+    refreshMetrics();
+    renderTable();
+    makePlot();
+  } catch (err) {
+    errorsEl.textContent = `${file.name}: ${err.message}`;
   }
 
-  state.subjects.push(...added);
-  refreshMetrics();
-  renderTable();
-  makePlot();
-
-  errorsEl.textContent = errors.join('\n');
   signalFilesInput.value = '';
 });
 
@@ -312,7 +285,7 @@ tbody.addEventListener('input', (event) => {
   if (!Number.isInteger(index)) return;
 
   if (action === 'rename') {
-    state.subjects[index].subjectId = event.target.value.trim() || state.subjects[index].filename;
+    state.subjects[index].subjectId = event.target.value.trim() || `Subject ${index + 1}`;
     makePlot();
   }
 });
