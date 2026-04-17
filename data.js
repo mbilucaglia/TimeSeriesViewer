@@ -340,6 +340,34 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+function getMaxPlayableTime() {
+  const signalMax = getSignalMaxTime(state.selectedMetric) || 0;
+  const videoMax = Number.isFinite(videoEl.duration) ? videoEl.duration : 0;
+  return Math.max(signalMax, videoMax);
+}
+
+function setCurrentTime(nextTime, syncVideo = true) {
+  const maxT = getMaxPlayableTime();
+  const t = Math.max(0, Math.min(Number(nextTime) || 0, maxT));
+
+  state.currentTime = t;
+
+  if (syncVideo) {
+    videoEl.currentTime = t;
+  }
+
+  if (timeSliderEl) {
+    timeSliderEl.max = String(maxT);
+    timeSliderEl.value = String(t);
+  }
+
+  if (timeLabelEl) {
+    timeLabelEl.textContent = `${t.toFixed(2)} s`;
+  }
+
+  updateCursor();
+}
+
 refreshMetrics();
 renderTable();
 makePlot();
