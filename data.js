@@ -317,6 +317,14 @@ tbody.addEventListener('click', (event) => {
   }
 });
 
+timeSliderEl.addEventListener('input', () => {
+  setCurrentTime(timeSliderEl.value, true);
+});
+
+videoEl.addEventListener('loadedmetadata', () => {
+  setCurrentTime(state.currentTime, false);
+});
+
 showIndividualsEl.addEventListener('change', makePlot);
 showAverageEl.addEventListener('change', makePlot);
 
@@ -335,8 +343,7 @@ selectNoneBtn.addEventListener('click', () => {
 downloadAverageBtn.addEventListener('click', exportAverage);
 
 function tick() {
-  state.currentTime = videoEl.currentTime || 0;
-  updateCursor();
+  setCurrentTime(videoEl.currentTime || 0, false);
   requestAnimationFrame(tick);
 }
 
