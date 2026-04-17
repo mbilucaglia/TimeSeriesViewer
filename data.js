@@ -20,6 +20,8 @@ const metricSelectEl = document.getElementById('metricSelect');
 const metaSubjectsEl = document.getElementById('metaSubjects');
 const metaMetricsEl = document.getElementById('metaMetrics');
 const metaSelectedEl = document.getElementById('metaSelected');
+const timeSliderEl = document.getElementById('timeSlider');
+const timeLabelEl = document.getElementById('timeLabel');
 
 function escapeHtml(str) {
   return String(str)
