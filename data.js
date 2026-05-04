@@ -11,20 +11,22 @@ const videoFileInput = document.getElementById('videoFile');
 const videoEl = document.getElementById('video');
 const errorsEl = document.getElementById('errors');
 const tbody = document.querySelector('#subjectsTable tbody');
+
 const showIndividualsEl = document.getElementById('showIndividuals');
 const showAverageEl = document.getElementById('showAverage');
 const selectAllBtn = document.getElementById('selectAllBtn');
 const selectNoneBtn = document.getElementById('selectNoneBtn');
 const downloadAverageBtn = document.getElementById('downloadAverageBtn');
 const metricSelectEl = document.getElementById('metricSelect');
+
 const metaSubjectsEl = document.getElementById('metaSubjects');
 const metaMetricsEl = document.getElementById('metaMetrics');
 const metaSelectedEl = document.getElementById('metaSelected');
-const timeSliderEl = document.getElementById('timeSlider');
+
 const timeLabelEl = document.getElementById('timeLabel');
 
-function escapeHtml(str) {
-  return String(str)
+function escapeHtml(value) {
+  return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -32,37 +34,131 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-function escapeAttr(str) {
-  return escapeHtml(str);
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function showError(message) {
+  errorsEl.textContent = message || '';
 }
 
 function detectDelimiter(text, filename) {
   const lower = filename.toLowerCase();
-  if (lower.endsWith('.tsv')) return '\t';
+
+  if (lower.endsWith('.tsv')) {
+    return '\t';
+  }
 
   const commas = (text.match(/,/g) || []).length;
   const tabs = (text.match(/\t/g) || []).length;
-  const semis = (text.match(/;/g) || []).length;
+  const semicolons = (text.match(/;/g) || []).length;
 
-  if (tabs > commas && tabs > semis) return '\t';
-  if (semis > commas) return ';';
+  if (tabs > commas && tabs > semicolons) {
+    return '\t';
+  }
+
+  if (semicolons > commas) {
+    return ';';
+  }
+
   return ',';
 }
 
-function parseTable(text, delimiter) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-  if (lines.length < 2) throw new Error('File needs a header row and at least one data row.');
+/*
+  Simple CSV/TSV parser with quote support.
 
-  const headers = lines[0].split(delimiter).map(v => v.trim());
+  It is still intentionally lightweight, but this is safer than splitting
+  rows with line.split(delimiter), because it can handle values like:
+  "Subject, 01"
+*/
+function parseDelimitedText(text, delimiter) {
+  const rows = [];
+  let currentRow = [];
+  let currentValue = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentValue += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+
+      continue;
+    }
+
+    if (char === delimiter && !insideQuotes) {
+      currentRow.push(currentValue.trim());
+      currentValue = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+
+      currentRow.push(currentValue.trim());
+
+      if (currentRow.some(value => value.length > 0)) {
+        rows.push(currentRow);
+      }
+
+      currentRow = [];
+      currentValue = '';
+      continue;
+    }
+
+    currentValue += char;
+  }
+
+  currentRow.push(currentValue.trim());
+
+  if (currentRow.some(value => value.length > 0)) {
+    rows.push(currentRow);
+  }
+
+  return rows;
+}
+
+function parseTable(text, delimiter) {
+  const parsedRows = parseDelimitedText(text, delimiter);
+
+  if (parsedRows.length < 2) {
+    throw new Error('File needs a header row and at least one data row.');
+  }
+
+  const headers = parsedRows[0].map(header => header.trim());
+
+  if (!headers.length || headers.some(header => !header)) {
+    throw new Error('The header row has empty column names.');
+  }
+
   const rows = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(delimiter).map(v => v.trim());
-    if (cols.length !== headers.length) continue;
+  for (let i = 1; i < parsedRows.length; i++) {
+    const columns = parsedRows[i];
+
+    if (columns.length !== headers.length) {
+      continue;
+    }
 
     const row = {};
-    headers.forEach((h, j) => row[h] = cols[j]);
+
+    headers.forEach((header, index) => {
+      row[header] = columns[index];
+    });
+
     rows.push(row);
+  }
+
+  if (!rows.length) {
+    throw new Error('No valid data rows were found.');
   }
 
   return { headers, rows };
@@ -71,7 +167,6 @@ function parseTable(text, delimiter) {
 function buildSubject(subjectId, dataByMetric) {
   const metrics = Object.keys(dataByMetric);
   const firstMetric = metrics[0];
-  const points = firstMetric ? dataByMetric[firstMetric].length : 0;
   const firstSeries = firstMetric ? dataByMetric[firstMetric] : [];
 
   return {
@@ -80,22 +175,28 @@ function buildSubject(subjectId, dataByMetric) {
     selected: true,
     metrics,
     dataByMetric,
-    points,
+    points: firstSeries.length,
     minT: firstSeries[0]?.time ?? '',
     maxT: firstSeries[firstSeries.length - 1]?.time ?? ''
   };
 }
 
 function parseLongFormat(headers, rows) {
-  const lowerMap = Object.fromEntries(headers.map(h => [h.toLowerCase(), h]));
-  const timeCol = lowerMap['time_s'] || lowerMap['time'] || headers[0];
-  const subjectCol = lowerMap['subject_id'] || lowerMap['subject'] || headers[1];
+  const lowerMap = Object.fromEntries(
+    headers.map(header => [header.toLowerCase(), header])
+  );
+
+  const timeCol = lowerMap.time_s || lowerMap.time || headers[0];
+  const subjectCol = lowerMap.subject_id || lowerMap.subject || headers[1];
 
   if (!timeCol || !subjectCol) {
-    throw new Error('Long format needs time and subject_id columns.');
+    throw new Error('Long format needs time_s and subject_id columns.');
   }
 
-  const metricCols = headers.filter(h => h !== timeCol && h !== subjectCol);
+  const metricCols = headers.filter(
+    header => header !== timeCol && header !== subjectCol
+  );
+
   if (!metricCols.length) {
     throw new Error('No metric columns found.');
   }
@@ -104,28 +205,48 @@ function parseLongFormat(headers, rows) {
 
   for (const row of rows) {
     const subjectId = String(row[subjectCol] || '').trim();
-    const t = Number(row[timeCol]);
+    const time = Number(row[timeCol]);
 
-    if (!subjectId || !Number.isFinite(t)) continue;
+    if (!subjectId || !Number.isFinite(time)) {
+      continue;
+    }
 
-    if (!grouped.has(subjectId)) grouped.set(subjectId, {});
+    if (!grouped.has(subjectId)) {
+      grouped.set(subjectId, {});
+    }
+
     const metricMap = grouped.get(subjectId);
 
     for (const metric of metricCols) {
-      const val = Number(row[metric]);
-      if (!Number.isFinite(val)) continue;
+      const value = Number(row[metric]);
 
-      if (!metricMap[metric]) metricMap[metric] = [];
-      metricMap[metric].push({ time: t, value: val });
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+
+      if (!metricMap[metric]) {
+        metricMap[metric] = [];
+      }
+
+      metricMap[metric].push({
+        time,
+        value
+      });
     }
   }
 
   const subjects = [];
+
   for (const [subjectId, dataByMetric] of grouped.entries()) {
     for (const metric of Object.keys(dataByMetric)) {
       dataByMetric[metric].sort((a, b) => a.time - b.time);
     }
+
     subjects.push(buildSubject(subjectId, dataByMetric));
+  }
+
+  if (!subjects.length) {
+    throw new Error('No valid subjects were found in the file.');
   }
 
   return subjects;
@@ -135,18 +256,22 @@ async function readSignalFile(file) {
   const text = await file.text();
   const delimiter = detectDelimiter(text.slice(0, 2000), file.name);
   const { headers, rows } = parseTable(text, delimiter);
-  const lowerHeaders = headers.map(h => h.toLowerCase());
-  const isLong = lowerHeaders.includes('subject_id') || lowerHeaders.includes('subject');
 
-  if (!isLong) {
-    throw new Error('This version accepts only one long-format file with time_s, subject_id, and metric columns.');
+  const lowerHeaders = headers.map(header => header.toLowerCase());
+  const isLongFormat =
+    lowerHeaders.includes('subject_id') || lowerHeaders.includes('subject');
+
+  if (!isLongFormat) {
+    throw new Error(
+      'This version accepts only one long-format file with time_s, subject_id, and metric columns.'
+    );
   }
 
   return parseLongFormat(headers, rows);
 }
 
 function getSelectedSubjects() {
-  return state.subjects.filter(s => s.selected);
+  return state.subjects.filter(subject => subject.selected);
 }
 
 function getSeries(subject, metric) {
@@ -154,44 +279,80 @@ function getSeries(subject, metric) {
 }
 
 function intersectTimes(selected, metric) {
-  const valid = selected.filter(s => getSeries(s, metric).length);
-  if (!valid.length) return [];
+  const validSubjects = selected.filter(
+    subject => getSeries(subject, metric).length
+  );
 
-  let common = new Set(valid[0].dataByMetric[metric].map(d => d.time));
-  for (let i = 1; i < valid.length; i++) {
-    const set = new Set(valid[i].dataByMetric[metric].map(d => d.time));
-    common = new Set([...common].filter(t => set.has(t)));
+  if (!validSubjects.length) {
+    return [];
   }
 
-  return [...common].sort((a, b) => a - b);
+  let commonTimes = new Set(
+    validSubjects[0].dataByMetric[metric].map(point => point.time)
+  );
+
+  for (let i = 1; i < validSubjects.length; i++) {
+    const subjectTimes = new Set(
+      validSubjects[i].dataByMetric[metric].map(point => point.time)
+    );
+
+    commonTimes = new Set(
+      [...commonTimes].filter(time => subjectTimes.has(time))
+    );
+  }
+
+  return [...commonTimes].sort((a, b) => a - b);
 }
 
 function computeAverage(selected, metric) {
-  const usable = selected.filter(s => getSeries(s, metric).length);
-  const times = intersectTimes(usable, metric);
+  const usableSubjects = selected.filter(
+    subject => getSeries(subject, metric).length
+  );
 
-  return times.map(t => {
+  const times = intersectTimes(usableSubjects, metric);
+
+  return times.map(time => {
     let sum = 0;
-    for (const subject of usable) {
-      const point = subject.dataByMetric[metric].find(d => d.time === t);
+
+    for (const subject of usableSubjects) {
+      const point = subject.dataByMetric[metric].find(
+        item => item.time === time
+      );
+
       sum += point.value;
     }
-    return { time: t, value: sum / usable.length };
+
+    return {
+      time,
+      value: sum / usableSubjects.length
+    };
   });
 }
 
 function refreshMetrics() {
   const metricSet = new Set();
-  state.subjects.forEach(s => s.metrics.forEach(m => metricSet.add(m)));
+
+  state.subjects.forEach(subject => {
+    subject.metrics.forEach(metric => metricSet.add(metric));
+  });
+
   state.metrics = [...metricSet];
 
   if (!state.metrics.includes(state.selectedMetric)) {
     state.selectedMetric = state.metrics[0] || '';
   }
 
-  metricSelectEl.innerHTML = state.metrics.map(m =>
-    `<option value="${escapeAttr(m)}" ${m === state.selectedMetric ? 'selected' : ''}>${escapeHtml(m)}</option>`
-  ).join('');
+  metricSelectEl.innerHTML = state.metrics
+    .map(metric => {
+      const selected = metric === state.selectedMetric ? 'selected' : '';
+
+      return `
+        <option value="${escapeAttr(metric)}" ${selected}>
+          ${escapeHtml(metric)}
+        </option>
+      `;
+    })
+    .join('');
 }
 
 function refreshMeta() {
@@ -205,14 +366,52 @@ function renderTable() {
 
   state.subjects.forEach((subject, index) => {
     const tr = document.createElement('tr');
+
     tr.innerHTML = `
-      <td><input type="checkbox" ${subject.selected ? 'checked' : ''} data-action="toggle" data-index="${index}" /></td>
-      <td><input type="text" value="${escapeAttr(subject.subjectId)}" data-action="rename" data-index="${index}" /></td>
-      <td>${escapeHtml(subject.metrics.join(', '))}</td>
-      <td>${subject.points}</td>
-      <td>${subject.minT} – ${subject.maxT}</td>
-      <td><button data-action="remove" data-index="${index}">✕</button></td>
+      <td class="col-select">
+        <input
+          type="checkbox"
+          data-action="toggle"
+          data-index="${index}"
+          ${subject.selected ? 'checked' : ''}
+        />
+      </td>
+
+      <td class="col-subject">
+        <input
+          class="subject-name-input"
+          type="text"
+          data-action="rename"
+          data-index="${index}"
+          value="${escapeAttr(subject.subjectId)}"
+        />
+      </td>
+
+      <td class="col-metrics">
+        ${escapeHtml(subject.metrics.join(', '))}
+      </td>
+
+      <td class="col-points">
+        ${subject.points}
+      </td>
+
+      <td class="col-range">
+        ${subject.minT} – ${subject.maxT}
+      </td>
+
+      <td class="col-remove">
+        <button
+          type="button"
+          class="danger-button"
+          data-action="remove"
+          data-index="${index}"
+          title="Remove subject"
+        >
+          ✕
+        </button>
+      </td>
     `;
+
     tbody.appendChild(tr);
   });
 
@@ -220,12 +419,17 @@ function renderTable() {
 }
 
 function downloadText(filename, text) {
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const blob = new Blob([text], {
+    type: 'text/plain;charset=utf-8'
+  });
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = filename;
+  link.click();
+
   URL.revokeObjectURL(url);
 }
 
@@ -234,46 +438,70 @@ function exportAverage() {
   const metric = state.selectedMetric;
 
   if (!selected.length || !metric) {
-    errorsEl.textContent = 'Select at least one subject and one metric before exporting the average.';
+    showError('Select at least one subject and one metric before exporting the average.');
     return;
   }
 
-  const avg = computeAverage(selected, metric);
-  if (!avg.length) {
-    errorsEl.textContent = 'The selected subjects do not share matching time values for this metric, so no average could be exported in this draft.';
+  const average = computeAverage(selected, metric);
+
+  if (!average.length) {
+    showError(
+      'The selected subjects do not share matching time values for this metric, so no average could be exported in this draft.'
+    );
     return;
   }
 
-  const csv = [`time,mean_${metric}`, ...avg.map(d => `${d.time},${d.value}`)].join('\n');
+  const csv = [
+    `time,mean_${metric}`,
+    ...average.map(point => `${point.time},${point.value}`)
+  ].join('\n');
+
   downloadText(`average_${metric}.csv`, csv);
-  errorsEl.textContent = '';
+  showError('');
 }
 
-signalFilesInput.addEventListener('change', async (event) => {
-  errorsEl.textContent = '';
+signalFilesInput.addEventListener('change', async event => {
+  showError('');
+
   const file = event.target.files[0];
-  if (!file) return;
+
+  if (!file) {
+    return;
+  }
 
   try {
-    const result = await readSignalFile(file);
-    state.subjects = result;
+    const subjects = await readSignalFile(file);
+
+    state.subjects = subjects;
+
     refreshMetrics();
     renderTable();
     makePlot();
-  } catch (err) {
-    errorsEl.textContent = `${file.name}: ${err.message}`;
+  } catch (error) {
+    showError(`${file.name}: ${error.message}`);
   }
 
   signalFilesInput.value = '';
 });
 
-videoFileInput.addEventListener('change', (event) => {
+videoFileInput.addEventListener('change', event => {
   const file = event.target.files[0];
-  if (!file) return;
 
-  if (state.videoUrl) URL.revokeObjectURL(state.videoUrl);
+  if (!file) {
+    return;
+  }
+
+  if (state.videoUrl) {
+    URL.revokeObjectURL(state.videoUrl);
+  }
+
   state.videoUrl = URL.createObjectURL(file);
   videoEl.src = state.videoUrl;
+});
+
+videoEl.addEventListener('loadedmetadata', () => {
+  setCurrentTime(state.currentTime, false);
+  makePlot();
 });
 
 metricSelectEl.addEventListener('change', () => {
@@ -281,98 +509,128 @@ metricSelectEl.addEventListener('change', () => {
   makePlot();
 });
 
-tbody.addEventListener('input', (event) => {
+tbody.addEventListener('input', event => {
   const action = event.target.dataset.action;
   const index = Number(event.target.dataset.index);
-  if (!Number.isInteger(index)) return;
+
+  if (!Number.isInteger(index)) {
+    return;
+  }
 
   if (action === 'rename') {
-    state.subjects[index].subjectId = event.target.value.trim() || `Subject ${index + 1}`;
+    state.subjects[index].subjectId =
+      event.target.value.trim() || `Subject ${index + 1}`;
+
     makePlot();
   }
 });
 
-tbody.addEventListener('change', (event) => {
+tbody.addEventListener('change', event => {
   const action = event.target.dataset.action;
   const index = Number(event.target.dataset.index);
-  if (!Number.isInteger(index)) return;
+
+  if (!Number.isInteger(index)) {
+    return;
+  }
 
   if (action === 'toggle') {
     state.subjects[index].selected = event.target.checked;
+
     refreshMeta();
     makePlot();
   }
 });
 
-tbody.addEventListener('click', (event) => {
+tbody.addEventListener('click', event => {
   const action = event.target.dataset.action;
   const index = Number(event.target.dataset.index);
-  if (!Number.isInteger(index)) return;
+
+  if (!Number.isInteger(index)) {
+    return;
+  }
 
   if (action === 'remove') {
     state.subjects.splice(index, 1);
+
     refreshMetrics();
     renderTable();
     makePlot();
   }
 });
 
-timeSliderEl.addEventListener('input', () => {
-  setCurrentTime(timeSliderEl.value, true);
-});
-
-videoEl.addEventListener('loadedmetadata', () => {
-  setCurrentTime(state.currentTime, false);
-});
-
 showIndividualsEl.addEventListener('change', makePlot);
 showAverageEl.addEventListener('change', makePlot);
 
 selectAllBtn.addEventListener('click', () => {
-  state.subjects.forEach(s => s.selected = true);
+  state.subjects.forEach(subject => {
+    subject.selected = true;
+  });
+
   renderTable();
   makePlot();
 });
 
 selectNoneBtn.addEventListener('click', () => {
-  state.subjects.forEach(s => s.selected = false);
+  state.subjects.forEach(subject => {
+    subject.selected = false;
+  });
+
   renderTable();
   makePlot();
 });
 
 downloadAverageBtn.addEventListener('click', exportAverage);
 
-function tick() {
-  setCurrentTime(videoEl.currentTime || 0, false);
-  requestAnimationFrame(tick);
-}
-
 function getMaxPlayableTime() {
-  const signalMax = getSignalMaxTime(state.selectedMetric) || 0;
-  const videoMax = Number.isFinite(videoEl.duration) ? videoEl.duration : 0;
+  const signalMax =
+    typeof getSignalMaxTime === 'function'
+      ? getSignalMaxTime(state.selectedMetric) || 0
+      : 0;
+
+  const videoMax = Number.isFinite(videoEl.duration)
+    ? videoEl.duration
+    : 0;
+
   return Math.max(signalMax, videoMax);
 }
 
 function setCurrentTime(nextTime, syncVideo = true) {
-  const maxT = getMaxPlayableTime();
-  const t = Math.max(0, Math.min(Number(nextTime) || 0, maxT));
+  const maxTime = getMaxPlayableTime();
+  const time = Math.max(0, Math.min(Number(nextTime) || 0, maxTime));
 
-  state.currentTime = t;
+  state.currentTime = time;
 
-  if (syncVideo) {
-    videoEl.currentTime = t;
-  }
+  if (syncVideo && videoEl.currentSrc) {
+    const videoTime = Number.isFinite(videoEl.duration)
+      ? Math.min(time, videoEl.duration)
+      : time;
 
-  if (timeSliderEl) {
-    timeSliderEl.max = String(maxT);
-    timeSliderEl.value = String(t);
+    videoEl.currentTime = videoTime;
   }
 
   if (timeLabelEl) {
-    timeLabelEl.textContent = `${t.toFixed(2)} s`;
+    timeLabelEl.textContent = `${time.toFixed(2)} s`;
   }
 
   updateCursor();
+}
+
+function tick() {
+  /*
+    If a video is loaded, the video is the master clock.
+    If no video is loaded, keep the current plot cursor where the user placed it.
+  */
+  if (videoEl.currentSrc) {
+    setCurrentTime(videoEl.currentTime || 0, false);
+  } else {
+    if (timeLabelEl) {
+      timeLabelEl.textContent = `${state.currentTime.toFixed(2)} s`;
+    }
+
+    updateCursor();
+  }
+
+  requestAnimationFrame(tick);
 }
 
 refreshMetrics();
