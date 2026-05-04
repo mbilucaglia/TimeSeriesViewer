@@ -25,6 +25,14 @@ const metaSelectedEl = document.getElementById('metaSelected');
 
 const timeLabelEl = document.getElementById('timeLabel');
 
+function makeId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+
+  return `subject-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -39,7 +47,20 @@ function escapeAttr(value) {
 }
 
 function showError(message) {
+  if (!errorsEl) return;
   errorsEl.textContent = message || '';
+}
+
+function safeMakePlot() {
+  if (typeof makePlot === 'function') {
+    makePlot();
+  }
+}
+
+function safeUpdateCursor() {
+  if (typeof updateCursor === 'function') {
+    updateCursor();
+  }
 }
 
 function detectDelimiter(text, filename) {
@@ -65,10 +86,9 @@ function detectDelimiter(text, filename) {
 }
 
 /*
-  Simple CSV/TSV parser with quote support.
+  Lightweight CSV / TSV parser with support for quoted values.
 
-  It is still intentionally lightweight, but this is safer than splitting
-  rows with line.split(delimiter), because it can handle values like:
+  This is safer than row.split(delimiter), because it can read values like:
   "Subject, 01"
 */
 function parseDelimitedText(text, delimiter) {
@@ -166,18 +186,31 @@ function parseTable(text, delimiter) {
 
 function buildSubject(subjectId, dataByMetric) {
   const metrics = Object.keys(dataByMetric);
-  const firstMetric = metrics[0];
-  const firstSeries = firstMetric ? dataByMetric[firstMetric] : [];
+
+  let points = 0;
+  let minT = Infinity;
+  let maxT = -Infinity;
+
+  for (const metric of metrics) {
+    const series = dataByMetric[metric];
+
+    points = Math.max(points, series.length);
+
+    for (const point of series) {
+      minT = Math.min(minT, point.time);
+      maxT = Math.max(maxT, point.time);
+    }
+  }
 
   return {
-    id: crypto.randomUUID(),
+    id: makeId(),
     subjectId,
     selected: true,
     metrics,
     dataByMetric,
-    points: firstSeries.length,
-    minT: firstSeries[0]?.time ?? '',
-    maxT: firstSeries[firstSeries.length - 1]?.time ?? ''
+    points,
+    minT: Number.isFinite(minT) ? minT : '',
+    maxT: Number.isFinite(maxT) ? maxT : ''
   };
 }
 
@@ -275,6 +308,7 @@ function getSelectedSubjects() {
 }
 
 function getSeries(subject, metric) {
+  if (!subject || !metric) return [];
   return subject.dataByMetric[metric] || [];
 }
 
@@ -288,12 +322,12 @@ function intersectTimes(selected, metric) {
   }
 
   let commonTimes = new Set(
-    validSubjects[0].dataByMetric[metric].map(point => point.time)
+    getSeries(validSubjects[0], metric).map(point => point.time)
   );
 
   for (let i = 1; i < validSubjects.length; i++) {
     const subjectTimes = new Set(
-      validSubjects[i].dataByMetric[metric].map(point => point.time)
+      getSeries(validSubjects[i], metric).map(point => point.time)
     );
 
     commonTimes = new Set(
@@ -309,22 +343,32 @@ function computeAverage(selected, metric) {
     subject => getSeries(subject, metric).length
   );
 
+  if (!usableSubjects.length) {
+    return [];
+  }
+
   const times = intersectTimes(usableSubjects, metric);
+
+  const lookupMaps = usableSubjects.map(subject => {
+    const map = new Map();
+
+    getSeries(subject, metric).forEach(point => {
+      map.set(point.time, point.value);
+    });
+
+    return map;
+  });
 
   return times.map(time => {
     let sum = 0;
 
-    for (const subject of usableSubjects) {
-      const point = subject.dataByMetric[metric].find(
-        item => item.time === time
-      );
-
-      sum += point.value;
+    for (const map of lookupMaps) {
+      sum += map.get(time);
     }
 
     return {
       time,
-      value: sum / usableSubjects.length
+      value: sum / lookupMaps.length
     };
   });
 }
@@ -342,6 +386,8 @@ function refreshMetrics() {
     state.selectedMetric = state.metrics[0] || '';
   }
 
+  if (!metricSelectEl) return;
+
   metricSelectEl.innerHTML = state.metrics
     .map(metric => {
       const selected = metric === state.selectedMetric ? 'selected' : '';
@@ -356,12 +402,22 @@ function refreshMetrics() {
 }
 
 function refreshMeta() {
-  metaSubjectsEl.textContent = `Subjects: ${state.subjects.length}`;
-  metaMetricsEl.textContent = `Metrics: ${state.metrics.length}`;
-  metaSelectedEl.textContent = `Selected: ${getSelectedSubjects().length}`;
+  if (metaSubjectsEl) {
+    metaSubjectsEl.textContent = `Subjects: ${state.subjects.length}`;
+  }
+
+  if (metaMetricsEl) {
+    metaMetricsEl.textContent = `Metrics: ${state.metrics.length}`;
+  }
+
+  if (metaSelectedEl) {
+    metaSelectedEl.textContent = `Selected: ${getSelectedSubjects().length}`;
+  }
 }
 
 function renderTable() {
+  if (!tbody) return;
+
   tbody.innerHTML = '';
 
   state.subjects.forEach((subject, index) => {
@@ -446,7 +502,7 @@ function exportAverage() {
 
   if (!average.length) {
     showError(
-      'The selected subjects do not share matching time values for this metric, so no average could be exported in this draft.'
+      'The selected subjects do not share matching time values for this metric, so no average could be exported.'
     );
     return;
   }
@@ -460,174 +516,249 @@ function exportAverage() {
   showError('');
 }
 
-signalFilesInput.addEventListener('change', async event => {
-  showError('');
+function getDataMaxTime(metric) {
+  let maxT = 0;
 
-  const file = event.target.files[0];
+  for (const subject of getSelectedSubjects()) {
+    const series = getSeries(subject, metric);
 
-  if (!file) {
-    return;
+    if (!series.length) continue;
+
+    const lastT = series[series.length - 1].time;
+
+    if (Number.isFinite(lastT)) {
+      maxT = Math.max(maxT, lastT);
+    }
   }
 
-  try {
-    const subjects = await readSignalFile(file);
+  return maxT;
+}
 
-    state.subjects = subjects;
+/*
+  This is the global duration used by both video and plot.
 
-    refreshMetrics();
-    renderTable();
-    makePlot();
-  } catch (error) {
-    showError(`${file.name}: ${error.message}`);
-  }
-
-  signalFilesInput.value = '';
-});
-
-videoFileInput.addEventListener('change', event => {
-  const file = event.target.files[0];
-
-  if (!file) {
-    return;
-  }
-
-  if (state.videoUrl) {
-    URL.revokeObjectURL(state.videoUrl);
-  }
-
-  state.videoUrl = URL.createObjectURL(file);
-  videoEl.src = state.videoUrl;
-});
-
-videoEl.addEventListener('loadedmetadata', () => {
-  setCurrentTime(state.currentTime, false);
-  makePlot();
-});
-
-metricSelectEl.addEventListener('change', () => {
-  state.selectedMetric = metricSelectEl.value;
-  makePlot();
-});
-
-tbody.addEventListener('input', event => {
-  const action = event.target.dataset.action;
-  const index = Number(event.target.dataset.index);
-
-  if (!Number.isInteger(index)) {
-    return;
-  }
-
-  if (action === 'rename') {
-    state.subjects[index].subjectId =
-      event.target.value.trim() || `Subject ${index + 1}`;
-
-    makePlot();
-  }
-});
-
-tbody.addEventListener('change', event => {
-  const action = event.target.dataset.action;
-  const index = Number(event.target.dataset.index);
-
-  if (!Number.isInteger(index)) {
-    return;
-  }
-
-  if (action === 'toggle') {
-    state.subjects[index].selected = event.target.checked;
-
-    refreshMeta();
-    makePlot();
-  }
-});
-
-tbody.addEventListener('click', event => {
-  const action = event.target.dataset.action;
-  const index = Number(event.target.dataset.index);
-
-  if (!Number.isInteger(index)) {
-    return;
-  }
-
-  if (action === 'remove') {
-    state.subjects.splice(index, 1);
-
-    refreshMetrics();
-    renderTable();
-    makePlot();
-  }
-});
-
-showIndividualsEl.addEventListener('change', makePlot);
-showAverageEl.addEventListener('change', makePlot);
-
-selectAllBtn.addEventListener('click', () => {
-  state.subjects.forEach(subject => {
-    subject.selected = true;
-  });
-
-  renderTable();
-  makePlot();
-});
-
-selectNoneBtn.addEventListener('click', () => {
-  state.subjects.forEach(subject => {
-    subject.selected = false;
-  });
-
-  renderTable();
-  makePlot();
-});
-
-downloadAverageBtn.addEventListener('click', exportAverage);
-
+  Important:
+  - If the video is longer than the signal, the cursor can still follow the video.
+  - If the signal is longer than the video, the plot still shows the whole signal.
+*/
 function getMaxPlayableTime() {
   const signalMax =
     typeof getSignalMaxTime === 'function'
       ? getSignalMaxTime(state.selectedMetric) || 0
-      : 0;
+      : getDataMaxTime(state.selectedMetric) || 0;
 
-  const videoMax = Number.isFinite(videoEl.duration)
+  const videoMax = Number.isFinite(videoEl?.duration)
     ? videoEl.duration
     : 0;
 
   return Math.max(signalMax, videoMax);
 }
 
+/*
+  The central time function.
+
+  Every time change should go through here:
+  - video playback
+  - plot click
+  - draggable lower cursor
+  - keyboard control
+*/
 function setCurrentTime(nextTime, syncVideo = true) {
   const maxTime = getMaxPlayableTime();
-  const time = Math.max(0, Math.min(Number(nextTime) || 0, maxTime));
+  const numericTime = Number(nextTime) || 0;
+  const time = maxTime > 0
+    ? Math.max(0, Math.min(numericTime, maxTime))
+    : Math.max(0, numericTime);
 
   state.currentTime = time;
 
-  if (syncVideo && videoEl.currentSrc) {
+  if (syncVideo && videoEl && videoEl.currentSrc) {
     const videoTime = Number.isFinite(videoEl.duration)
       ? Math.min(time, videoEl.duration)
       : time;
 
-    videoEl.currentTime = videoTime;
+    /*
+      Avoid repeatedly assigning currentTime by tiny amounts.
+      This prevents jitter while the video is playing.
+    */
+    if (Math.abs(videoEl.currentTime - videoTime) > 0.03) {
+      videoEl.currentTime = videoTime;
+    }
   }
 
   if (timeLabelEl) {
     timeLabelEl.textContent = `${time.toFixed(2)} s`;
   }
 
-  updateCursor();
+  safeUpdateCursor();
 }
 
+if (signalFilesInput) {
+  signalFilesInput.addEventListener('change', async event => {
+    showError('');
+
+    const file = event.target.files[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const subjects = await readSignalFile(file);
+
+      state.subjects = subjects;
+
+      refreshMetrics();
+      renderTable();
+      safeMakePlot();
+    } catch (error) {
+      showError(`${file.name}: ${error.message}`);
+    }
+
+    signalFilesInput.value = '';
+  });
+}
+
+if (videoFileInput) {
+  videoFileInput.addEventListener('change', event => {
+    const file = event.target.files[0];
+
+    if (!file || !videoEl) {
+      return;
+    }
+
+    if (state.videoUrl) {
+      URL.revokeObjectURL(state.videoUrl);
+    }
+
+    state.videoUrl = URL.createObjectURL(file);
+    videoEl.src = state.videoUrl;
+    videoEl.load();
+  });
+}
+
+if (videoEl) {
+  videoEl.addEventListener('loadedmetadata', () => {
+    setCurrentTime(state.currentTime, false);
+    safeMakePlot();
+  });
+
+  videoEl.addEventListener('seeked', () => {
+    setCurrentTime(videoEl.currentTime || 0, false);
+  });
+
+  videoEl.addEventListener('timeupdate', () => {
+    setCurrentTime(videoEl.currentTime || 0, false);
+  });
+}
+
+if (metricSelectEl) {
+  metricSelectEl.addEventListener('change', () => {
+    state.selectedMetric = metricSelectEl.value;
+    safeMakePlot();
+  });
+}
+
+if (tbody) {
+  tbody.addEventListener('input', event => {
+    const action = event.target.dataset.action;
+    const index = Number(event.target.dataset.index);
+
+    if (!Number.isInteger(index) || !state.subjects[index]) {
+      return;
+    }
+
+    if (action === 'rename') {
+      state.subjects[index].subjectId =
+        event.target.value.trim() || `Subject ${index + 1}`;
+
+      safeMakePlot();
+    }
+  });
+
+  tbody.addEventListener('change', event => {
+    const action = event.target.dataset.action;
+    const index = Number(event.target.dataset.index);
+
+    if (!Number.isInteger(index) || !state.subjects[index]) {
+      return;
+    }
+
+    if (action === 'toggle') {
+      state.subjects[index].selected = event.target.checked;
+
+      refreshMeta();
+      safeMakePlot();
+    }
+  });
+
+  tbody.addEventListener('click', event => {
+    const action = event.target.dataset.action;
+    const index = Number(event.target.dataset.index);
+
+    if (!Number.isInteger(index) || !state.subjects[index]) {
+      return;
+    }
+
+    if (action === 'remove') {
+      state.subjects.splice(index, 1);
+
+      refreshMetrics();
+      renderTable();
+      safeMakePlot();
+    }
+  });
+}
+
+if (showIndividualsEl) {
+  showIndividualsEl.addEventListener('change', safeMakePlot);
+}
+
+if (showAverageEl) {
+  showAverageEl.addEventListener('change', safeMakePlot);
+}
+
+if (selectAllBtn) {
+  selectAllBtn.addEventListener('click', () => {
+    state.subjects.forEach(subject => {
+      subject.selected = true;
+    });
+
+    renderTable();
+    safeMakePlot();
+  });
+}
+
+if (selectNoneBtn) {
+  selectNoneBtn.addEventListener('click', () => {
+    state.subjects.forEach(subject => {
+      subject.selected = false;
+    });
+
+    renderTable();
+    safeMakePlot();
+  });
+}
+
+if (downloadAverageBtn) {
+  downloadAverageBtn.addEventListener('click', exportAverage);
+}
+
+/*
+  Smooth video-to-plot synchronization.
+
+  The video is the master clock while loaded.
+  requestAnimationFrame keeps the cursor smoother than timeupdate alone.
+*/
 function tick() {
-  /*
-    If a video is loaded, the video is the master clock.
-    If no video is loaded, keep the current plot cursor where the user placed it.
-  */
-  if (videoEl.currentSrc) {
+  if (videoEl && videoEl.currentSrc) {
     setCurrentTime(videoEl.currentTime || 0, false);
   } else {
     if (timeLabelEl) {
       timeLabelEl.textContent = `${state.currentTime.toFixed(2)} s`;
     }
 
-    updateCursor();
+    safeUpdateCursor();
   }
 
   requestAnimationFrame(tick);
@@ -635,5 +766,5 @@ function tick() {
 
 refreshMetrics();
 renderTable();
-makePlot();
+safeMakePlot();
 tick();
