@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Subject Time-Series Viewer</title>
+
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
   <div class="wrap">
     <h1>Subject Time-Series Viewer</h1>
+
     <p class="page-subtitle">
       Single-file prototype. Open this HTML in a browser, upload one video and a long-format CSV/TXT file, then select subjects and compute the average for a chosen metric.
     </p>
@@ -17,45 +21,55 @@
     <div class="app-layout">
       <section class="card video-panel">
         <h2 class="section-title">1) Video</h2>
+
         <video id="video" controls></video>
+
         <p class="small mt12">
           The video time is used as the sync cursor on the plot. In this draft, averaging works when selected subjects share the same time samples for the chosen metric.
         </p>
       </section>
 
       <section class="card plot-panel">
-        <h2 class="section-title">2) Plot</h2>
-        <div id="plot"></div>
+        <div class="row space-between mb10">
+          <h2 class="section-title">2) Plot</h2>
+          <span id="timeLabel" class="pill">0.00 s</span>
+        </div>
+
+        <div id="plotWrap" class="plot-wrap">
+          <div id="plot"></div>
+
+          <div
+            id="plotCursor"
+            class="plot-cursor"
+            role="slider"
+            aria-label="Current video time"
+            aria-valuemin="0"
+            aria-valuemax="0"
+            aria-valuenow="0"
+            tabindex="0"
+            title="Drag this cursor to change the video time"
+          >
+            <div class="plot-cursor-bar"></div>
+            <div class="plot-cursor-handle">0.00s</div>
+          </div>
+        </div>
+
+        <p class="small mt12">
+          Drag the blue cursor in the lower zoomable plot to move through time.
+        </p>
       </section>
-      <section class="card plot-panel">
-  <h2 class="section-title">2) Plot</h2>
-
-  <div class="timeline-panel">
-    <div class="row space-between mt12">
-      <span class="small">Time</span>
-      <span id="timeLabel" class="pill">0.00 s</span>
-    </div>
-
-    <input
-      id="timeSlider"
-      type="range"
-      min="0"
-      max="0"
-      step="0.001"
-      value="0"
-    />
-  </div>
-</section>
 
       <aside class="card sidebar">
         <div class="row space-between mb10">
           <div>
             <h2 class="section-title">3) Controls</h2>
+
             <div class="small">
               Supported format: a single CSV/TXT file in long format with
               <b>time_s, subject_id, metric_*</b> columns.
             </div>
           </div>
+
           <span class="pill">No install needed</span>
         </div>
 
@@ -83,9 +97,17 @@
 
           <div>
             <div class="small mb6">Display mode</div>
+
             <div class="row">
-              <label><input type="checkbox" id="showIndividuals" checked /> Show individual traces</label>
-              <label><input type="checkbox" id="showAverage" checked /> Show average</label>
+              <label>
+                <input type="checkbox" id="showIndividuals" checked />
+                Show individual traces
+              </label>
+
+              <label>
+                <input type="checkbox" id="showAverage" checked />
+                Show average
+              </label>
             </div>
           </div>
         </div>
@@ -110,6 +132,7 @@
                 <th class="col-remove">Remove</th>
               </tr>
             </thead>
+
             <tbody></tbody>
           </table>
         </div>
@@ -118,8 +141,6 @@
   </div>
 
   <script src="plot.js"></script>
-<script src="data.js"></script>
-</body>
-</html>
+  <script src="data.js"></script>
 </body>
 </html>
