@@ -15,7 +15,8 @@
     <h1>Subject Time-Series Viewer</h1>
 
     <p class="page-subtitle">
-      Single-file prototype. Open this HTML in a browser, upload one video and a long-format CSV/TXT file, then select subjects and compute the average for a chosen metric.
+      Upload one video and one long-format CSV/TXT/TSV signal file.
+      The video time controls the vertical cursor on the plot.
     </p>
 
     <div class="app-layout">
@@ -25,7 +26,7 @@
         <video id="video" controls></video>
 
         <p class="small mt12">
-          The video time is used as the sync cursor on the plot. In this draft, averaging works when selected subjects share the same time samples for the chosen metric.
+          The video is the master clock. When the video plays, the plot cursor follows the video time.
         </p>
       </section>
 
@@ -40,22 +41,22 @@
 
           <div
             id="plotCursor"
-            class="plot-cursor"
+            class="plot-timeline-cursor"
             role="slider"
             aria-label="Current video time"
             aria-valuemin="0"
             aria-valuemax="0"
             aria-valuenow="0"
             tabindex="0"
-            title="Drag this cursor to change the video time"
+            title="Drag to change video time"
           >
-            <div class="plot-cursor-bar"></div>
-            <div class="plot-cursor-handle">0.00s</div>
+            <div class="plot-timeline-cursor-bar"></div>
+            <div class="plot-timeline-cursor-handle">0.00s</div>
           </div>
         </div>
 
         <p class="small mt12">
-          Drag the blue cursor in the lower zoomable plot to move through time.
+          Click the main plot to move the video. Drag the rounded cursor in the lower zoomable plot to scrub through time.
         </p>
       </section>
 
@@ -65,8 +66,8 @@
             <h2 class="section-title">3) Controls</h2>
 
             <div class="small">
-              Supported format: a single CSV/TXT file in long format with
-              <b>time_s, subject_id, metric_*</b> columns.
+              Supported format: a single CSV/TXT/TSV file in long format with
+              <b>time_s</b>, <b>subject_id</b>, and one or more metric columns.
             </div>
           </div>
 
@@ -84,9 +85,9 @@
             <input id="videoFile" type="file" accept="video/*" />
           </label>
 
-          <button id="selectAllBtn">Select all</button>
-          <button id="selectNoneBtn">Select none</button>
-          <button id="downloadAverageBtn">Export average CSV</button>
+          <button id="selectAllBtn" type="button">Select all</button>
+          <button id="selectNoneBtn" type="button">Select none</button>
+          <button id="downloadAverageBtn" type="button">Export average CSV</button>
         </div>
 
         <div class="controls-grid">
