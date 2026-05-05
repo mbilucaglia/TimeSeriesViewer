@@ -1,3 +1,30 @@
+/*
+  ============================================================
+  FILE: styles.css
+
+  This file controls the APPEARANCE of the web page.
+
+  HTML defines what exists.
+  CSS defines how it looks:
+  - colors
+  - spacing
+  - layout
+  - buttons
+  - table
+  - video size
+  - plot cursor
+  ============================================================
+*/
+
+
+/* ============================================================
+   BLOCK 1: COLOR VARIABLES
+
+   These variables make it easy to change the app colors later.
+   Example:
+   change --accent once, and all blue accents update.
+   ============================================================ */
+
 :root {
   --bg: #f6f7fb;
   --card: #ffffff;
@@ -6,7 +33,16 @@
   --muted: #6b7280;
   --accent: #2563eb;
   --danger: #b91c1c;
+
+  --shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
 }
+
+
+/* ============================================================
+   BLOCK 2: GLOBAL PAGE RESET
+
+   box-sizing: border-box makes widths easier to reason about.
+   ============================================================ */
 
 * {
   box-sizing: border-box;
@@ -19,10 +55,19 @@ body {
   color: var(--text);
 }
 
+
+/* ============================================================
+   BLOCK 3: PAGE WRAPPER AND HEADER
+   ============================================================ */
+
 .wrap {
   max-width: 1320px;
   margin: 0 auto;
   padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 14px;
 }
 
 h1 {
@@ -31,19 +76,27 @@ h1 {
 }
 
 .page-subtitle {
-  margin: 0 0 14px;
+  margin: 0;
   color: var(--muted);
 }
 
-/* Layout */
+
+/* ============================================================
+   BLOCK 4: MAIN APP LAYOUT
+
+   CSS Grid places the three main panels:
+   - video
+   - plot
+   - sidebar
+   ============================================================ */
 
 .app-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "video sidebar"
-    "plot  sidebar";
+    "plot sidebar";
   gap: 16px;
   align-items: start;
 }
@@ -58,38 +111,39 @@ h1 {
   min-width: 0;
 }
 
-.timeline-panel {
-  width: 100%;
-  margin-top: 12px;
-}
-
-#timeSlider {
-  display: block;
-  width: 100%;
-}
-
 .sidebar {
   grid-area: sidebar;
   position: sticky;
   top: 20px;
   height: calc(100vh - 40px);
+
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
 }
 
-/* Cards */
+
+/* ============================================================
+   BLOCK 5: CARDS
+
+   The video, plot, and sidebar are all cards.
+   ============================================================ */
 
 .card {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow);
 }
 
-/* Generic utility classes */
+
+/* ============================================================
+   BLOCK 6: SMALL UTILITY CLASSES
+
+   These are reusable helper classes used throughout index.html.
+   ============================================================ */
 
 .row {
   display: flex;
@@ -118,46 +172,10 @@ h1 {
   margin-bottom: 10px;
 }
 
-/* Form controls */
 
-label.file {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: #fff;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-input[type="file"] {
-  display: none;
-}
-
-button,
-select {
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: white;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-button.primary {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* Typography */
+/* ============================================================
+   BLOCK 7: TYPOGRAPHY
+   ============================================================ */
 
 .section-title {
   font-size: 18px;
@@ -167,6 +185,7 @@ button:disabled {
 .small {
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.4;
 }
 
 .danger {
@@ -184,7 +203,72 @@ button:disabled {
   background: #fff;
 }
 
-/* Media */
+
+/* ============================================================
+   BLOCK 8: FORM CONTROLS AND BUTTONS
+   ============================================================ */
+
+label.file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/*
+  The real file input is hidden.
+  The visible clickable area is the label.file above.
+*/
+input[type="file"] {
+  display: none;
+}
+
+button,
+select {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover,
+label.file:hover,
+select:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+
+/* ============================================================
+   BLOCK 9: VIDEO
+   ============================================================ */
 
 #video {
   width: 100%;
@@ -194,32 +278,63 @@ button:disabled {
   display: block;
 }
 
+
+/* ============================================================
+   BLOCK 10: PLOT AREA
+
+   plot-wrap is the container that holds:
+   - the Plotly plot
+   - the custom draggable cursor overlay
+   ============================================================ */
+
 .plot-wrap {
   position: relative;
   width: 100%;
 }
 
-/* Keep your existing #plot rule, but this is the recommended version. */
 #plot {
   width: 100%;
   height: 560px;
 }
 
-/*
-  This is the new draggable time cursor.
-  It is positioned over Plotly's lower rangeslider / zoomable mini-plot.
-*/
+
+/* ============================================================
+   BLOCK 11: CUSTOM DRAGGABLE PLOT CURSOR
+
+   This cursor sits above Plotly's lower rangeslider.
+
+   It is separate from the Plotly vertical line:
+   - Plotly vertical line = shape inside the plot
+   - This cursor = draggable HTML element
+   ============================================================ */
+
 .plot-cursor {
   position: absolute;
+
+  /*
+    JavaScript updates the left position dynamically.
+    Example:
+    cursor.style.left = "250px";
+  */
   left: 0;
-  bottom: 46px;
-  width: 78px;
-  height: 92px;
+
+  /*
+    This places the cursor visually over the lower Plotly rangeslider.
+    If it appears too high or too low, adjust this value.
+  */
+  bottom: 34px;
+
+  width: 86px;
+  height: 96px;
+
   transform: translateX(-50%);
-  z-index: 20;
+  z-index: 50;
+
   display: none;
+
   cursor: ew-resize;
   touch-action: none;
+  user-select: none;
 }
 
 .plot-cursor.is-visible {
@@ -228,37 +343,122 @@ button:disabled {
 
 .plot-cursor-bar {
   position: absolute;
-  top: 6px;
-  bottom: 6px;
+  top: 5px;
+  bottom: 5px;
   left: 50%;
-  width: 5px;
+
+  width: 6px;
   transform: translateX(-50%);
+
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+
+  box-shadow:
+    0 0 0 4px rgba(37, 99, 235, 0.18),
+    0 8px 22px rgba(37, 99, 235, 0.25);
 }
 
 .plot-cursor-handle {
   position: absolute;
   top: 50%;
   left: 50%;
-  min-width: 66px;
-  height: 34px;
-  padding: 0 10px;
+
+  min-width: 72px;
+  height: 38px;
+  padding: 0 12px;
+
   transform: translate(-50%, -50%);
+
   border-radius: 999px;
   background: var(--accent);
   color: white;
+
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
-  user-select: none;
+
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.38);
+
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 .plot-cursor.is-dragging .plot-cursor-handle {
-  transform: translate(-50%, -50%) scale(1.06);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+
+/* ============================================================
+   BLOCK 12: SUBJECT TABLE
+   ============================================================ */
+
+.sidebar-table-wrap {
+  margin-top: 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  text-align: left;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #f9fafb;
+  z-index: 2;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.subject-name-input {
+  width: 100%;
+  min-width: 100px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.danger-button {
+  padding: 6px 9px;
+  color: var(--danger);
+}
+
+
+/* ============================================================
+   BLOCK 13: RESPONSIVE LAYOUT
+
+   On smaller screens, stack everything vertically.
+   ============================================================ */
+
+@media (max-width: 980px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "video"
+      "plot"
+      "sidebar";
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+  }
 }
