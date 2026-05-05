@@ -1,47 +1,132 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!--
+    ============================================================
+    FILE: index.html
+
+    This file defines the STRUCTURE of the web page.
+
+    Think of it as the skeleton:
+    - where the video appears
+    - where the plot appears
+    - where buttons and controls appear
+    - which JavaScript and CSS files are loaded
+    ============================================================
+  -->
+
   <meta charset="UTF-8" />
+
+  <!-- Makes the page adapt better to phones/tablets/smaller screens. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <title>Subject Time-Series Viewer</title>
 
+  <!--
+    Plotly is the external library used to draw the interactive plot.
+    It must be loaded before our own plot.js file.
+  -->
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <!-- Our CSS file controls how the page looks. -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
+  <!--
+    Main page wrapper.
+    This keeps the content centered and prevents it from becoming too wide.
+  -->
   <div class="wrap">
-    <h1>Subject Time-Series Viewer</h1>
 
-    <p class="page-subtitle">
-      Upload one video and one long-format CSV/TXT/TSV signal file.
-      The video time controls the vertical cursor on the plot.
-    </p>
+    <!-- =========================================================
+         PAGE HEADER
+         ========================================================= -->
+    <header class="page-header">
+      <h1>Subject Time-Series Viewer</h1>
 
-    <div class="app-layout">
+      <p class="page-subtitle">
+        Upload one video and one long-format CSV/TXT/TSV signal file.
+        Then select subjects, choose a metric, and inspect the synchronized
+        video and time-series plot.
+      </p>
+    </header>
+
+    <!--
+      Main app layout.
+
+      The CSS grid places:
+      - video on the upper-left
+      - plot on the lower-left
+      - controls/sidebar on the right
+    -->
+    <main class="app-layout">
+
+      <!-- =======================================================
+           BLOCK 1: VIDEO PANEL
+           ======================================================= -->
       <section class="card video-panel">
         <h2 class="section-title">1) Video</h2>
 
+        <!--
+          The browser's built-in video player.
+
+          JavaScript uses this element through:
+          const videoEl = document.getElementById('video');
+        -->
         <video id="video" controls></video>
 
         <p class="small mt12">
-          The video is the master clock. When the video plays, the plot cursor follows the video time.
+          The video is the master clock during playback. When the video plays,
+          the plot cursor follows the video time.
         </p>
       </section>
 
+      <!-- =======================================================
+           BLOCK 2: PLOT PANEL
+           ======================================================= -->
       <section class="card plot-panel">
+
+        <!-- Header row: title on the left, current time on the right. -->
         <div class="row space-between mb10">
           <h2 class="section-title">2) Plot</h2>
+
+          <!--
+            Current time label.
+            JavaScript updates this every time the current time changes.
+          -->
           <span id="timeLabel" class="pill">0.00 s</span>
         </div>
 
+        <!--
+          plotWrap is important.
+
+          It allows us to place an HTML draggable cursor above the Plotly plot.
+          The Plotly plot itself lives inside #plot.
+        -->
         <div id="plotWrap" class="plot-wrap">
+
+          <!--
+            Plotly draws the main plot and lower zoomable rangeslider here.
+          -->
           <div id="plot"></div>
 
+          <!--
+            Custom draggable cursor.
+
+            This is NOT the Plotly vertical line.
+            This is an HTML overlay that sits visually over the lower Plotly
+            rangeslider and can be dragged left/right.
+
+            Dragging it updates:
+            - state.currentTime
+            - video.currentTime
+            - Plotly vertical cursor
+            - time label
+          -->
           <div
             id="plotCursor"
-            class="plot-timeline-cursor"
+            class="plot-cursor"
             role="slider"
             aria-label="Current video time"
             aria-valuemin="0"
@@ -50,52 +135,76 @@
             tabindex="0"
             title="Drag to change video time"
           >
-            <div class="plot-timeline-cursor-bar"></div>
-            <div class="plot-timeline-cursor-handle">0.00s</div>
+            <div class="plot-cursor-bar"></div>
+            <div class="plot-cursor-handle">0.00s</div>
           </div>
         </div>
 
         <p class="small mt12">
-          Click the main plot to move the video. Drag the rounded cursor in the lower zoomable plot to scrub through time.
+          Video → plot: play or seek the video. Plot → video: click the main plot
+          or drag the rounded cursor in the lower zoomable plot.
         </p>
       </section>
 
+      <!-- =======================================================
+           BLOCK 3: SIDEBAR / CONTROLS
+           ======================================================= -->
       <aside class="card sidebar">
+
+        <!-- Sidebar title and short instructions. -->
         <div class="row space-between mb10">
           <div>
             <h2 class="section-title">3) Controls</h2>
 
             <div class="small">
-              Supported format: a single CSV/TXT/TSV file in long format with
-              <b>time_s</b>, <b>subject_id</b>, and one or more metric columns.
+              Signal file format:
+              <b>time_s, subject_id, metric columns...</b>
             </div>
           </div>
 
           <span class="pill">No install needed</span>
         </div>
 
+        <!-- -------------------------------------------------------
+             File upload and action buttons
+             ------------------------------------------------------- -->
         <div class="row">
+
+          <!--
+            Hidden file input styled as a button.
+            JavaScript listens to #signalFiles.
+          -->
           <label class="file">
             Upload signals
             <input id="signalFiles" type="file" accept=".csv,.txt,.tsv" />
           </label>
 
+          <!--
+            Hidden video input styled as a button.
+            JavaScript listens to #videoFile.
+          -->
           <label class="file">
             Upload video
             <input id="videoFile" type="file" accept="video/*" />
           </label>
 
-          <button id="selectAllBtn" type="button">Select all</button>
-          <button id="selectNoneBtn" type="button">Select none</button>
-          <button id="downloadAverageBtn" type="button">Export average CSV</button>
+          <button id="selectAllBtn">Select all</button>
+          <button id="selectNoneBtn">Select none</button>
+          <button id="downloadAverageBtn">Export average CSV</button>
         </div>
 
+        <!-- -------------------------------------------------------
+             Metric selector and display options
+             ------------------------------------------------------- -->
         <div class="controls-grid">
+
+          <!-- JavaScript fills this dropdown with detected metric names. -->
           <div>
             <div class="small mb6">Metric to display / average</div>
             <select id="metricSelect"></select>
           </div>
 
+          <!-- Checkboxes that decide what the plot shows. -->
           <div>
             <div class="small mb6">Display mode</div>
 
@@ -113,14 +222,21 @@
           </div>
         </div>
 
+        <!-- -------------------------------------------------------
+             Metadata pills
+             ------------------------------------------------------- -->
         <div class="meta">
           <div class="pill" id="metaSubjects">Subjects: 0</div>
           <div class="pill" id="metaMetrics">Metrics: 0</div>
           <div class="pill" id="metaSelected">Selected: 0</div>
         </div>
 
+        <!-- JavaScript writes user-facing errors here. -->
         <div id="errors" class="danger mt12"></div>
 
+        <!-- -------------------------------------------------------
+             Subject table
+             ------------------------------------------------------- -->
         <div class="sidebar-table-wrap">
           <table id="subjectsTable">
             <thead>
@@ -134,13 +250,28 @@
               </tr>
             </thead>
 
+            <!-- JavaScript creates one row per subject inside this tbody. -->
             <tbody></tbody>
           </table>
         </div>
       </aside>
-    </div>
+    </main>
   </div>
 
+  <!--
+    IMPORTANT SCRIPT ORDER
+
+    plot.js is loaded first because it defines plotting functions such as:
+    - makePlot()
+    - updateCursor()
+    - getSignalMaxTime()
+
+    data.js is loaded second because it:
+    - reads data files
+    - defines the app state
+    - connects UI buttons
+    - calls makePlot()
+  -->
   <script src="plot.js"></script>
   <script src="data.js"></script>
 </body>
