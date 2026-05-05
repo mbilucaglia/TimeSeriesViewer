@@ -1,7 +1,53 @@
+/*
+  ============================================================
+  FILE: plot.js
+
+  This file controls the PLOT and PLOT INTERACTIONS.
+
+  Main responsibilities:
+  1. Draw Plotly traces.
+  2. Draw the Plotly vertical time line.
+  3. Move the custom HTML cursor over the lower rangeslider.
+  4. Let the user click the main plot to seek the video.
+  5. Let the user drag the lower cursor to seek the video.
+  6. Keep Plotly updates efficient during video playback.
+
+  Important:
+  data.js owns the central time function:
+  setCurrentTime()
+
+  plot.js never directly changes video.currentTime.
+  Instead, plot.js calls setCurrentTime(time, true).
+  ============================================================
+*/
+
+
+/* ============================================================
+   BLOCK 1: CURSOR UPDATE CONTROL
+
+   Plotly.relayout() is heavier than moving a simple HTML element.
+
+   So:
+   - the HTML cursor updates immediately
+   - the Plotly vertical line is throttled to about 30 fps
+   ============================================================ */
+
 let lastCursorRelayoutAt = 0;
 let cursorRelayoutInFlight = false;
 let pendingCursorRelayout = false;
 
+
+/* ============================================================
+   BLOCK 2: TIME LIMIT HELPERS
+   ============================================================ */
+
+/*
+  Return the maximum signal time among selected subjects.
+
+  Used by both:
+  - plot.js for plot range
+  - data.js for global synchronization duration
+*/
 function getSignalMaxTime(metric) {
   if (typeof getSelectedSubjects !== 'function' || typeof getSeries !== 'function') {
     return 0;
@@ -13,7 +59,9 @@ function getSignalMaxTime(metric) {
   for (const subject of selected) {
     const series = getSeries(subject, metric);
 
-    if (!series.length) continue;
+    if (!series.length) {
+      continue;
+    }
 
     const lastT = series[series.length - 1].time;
 
@@ -25,6 +73,16 @@ function getSignalMaxTime(metric) {
   return maxT;
 }
 
+
+/*
+  Return the maximum time the plot should represent.
+
+  Usually this is the larger of:
+  - video duration
+  - signal duration
+
+  getMaxPlayableTime() is defined in data.js.
+*/
 function getPlotMaxTime(metric) {
   const signalMax = getSignalMaxTime(metric) || 0;
 
@@ -36,6 +94,14 @@ function getPlotMaxTime(metric) {
   return Math.max(signalMax, playableMax);
 }
 
+
+/*
+  Keep time inside valid bounds.
+
+  Example:
+  - negative time becomes 0
+  - time beyond max becomes max
+*/
 function clampTime(nextTime) {
   const maxT = getPlotMaxTime(state.selectedMetric);
   const numericTime = Number(nextTime) || 0;
@@ -47,148 +113,28 @@ function clampTime(nextTime) {
   return Math.max(0, Math.min(numericTime, maxT));
 }
 
-function injectTimelineCursorStyles() {
-  if (document.getElementById('timelineCursorAutoStyles')) {
-    return;
-  }
 
-  const style = document.createElement('style');
-  style.id = 'timelineCursorAutoStyles';
+/* ============================================================
+   BLOCK 3: PLOT GEOMETRY
 
-  style.textContent = `
-    .plot-wrap {
-      position: relative;
-      width: 100%;
-    }
+   These functions translate between:
+   - mouse/pointer x position in pixels
+   - time in seconds
 
-    .plot-timeline-cursor {
-      position: absolute;
-      left: 0;
-      bottom: 34px;
-      width: 86px;
-      height: 96px;
-      transform: translateX(-50%);
-      z-index: 50;
-      display: none;
-      cursor: ew-resize;
-      touch-action: none;
-      user-select: none;
-    }
+   This is necessary for:
+   - clicking the main plot
+   - dragging the lower cursor
+   ============================================================ */
 
-    .plot-timeline-cursor.is-visible {
-      display: block;
-    }
+/*
+  Read the pixel geometry of the Plotly plot.
 
-    .plot-timeline-cursor-bar {
-      position: absolute;
-      top: 5px;
-      bottom: 5px;
-      left: 50%;
-      width: 6px;
-      transform: translateX(-50%);
-      border-radius: 999px;
-      background: #2563eb;
-      box-shadow:
-        0 0 0 4px rgba(37, 99, 235, 0.18),
-        0 8px 22px rgba(37, 99, 235, 0.25);
-    }
+  Plotly stores useful layout information in:
+  gd._fullLayout.xaxis
+  gd._fullLayout.yaxis
 
-    .plot-timeline-cursor-handle {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      min-width: 72px;
-      height: 38px;
-      padding: 0 12px;
-      transform: translate(-50%, -50%);
-      border-radius: 999px;
-      background: #2563eb;
-      color: white;
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.38);
-      pointer-events: none;
-      white-space: nowrap;
-    }
-
-    .plot-timeline-cursor.is-dragging .plot-timeline-cursor-handle {
-      transform: translate(-50%, -50%) scale(1.08);
-    }
-  `;
-
-  document.head.appendChild(style);
-}
-
-function ensurePlotWrap() {
-  const plot = document.getElementById('plot');
-
-  if (!plot) {
-    return null;
-  }
-
-  let plotWrap = document.getElementById('plotWrap');
-
-  if (plotWrap) {
-    return plotWrap;
-  }
-
-  plotWrap = document.createElement('div');
-  plotWrap.id = 'plotWrap';
-  plotWrap.className = 'plot-wrap';
-
-  plot.parentNode.insertBefore(plotWrap, plot);
-  plotWrap.appendChild(plot);
-
-  return plotWrap;
-}
-
-function ensureTimelineCursor() {
-  injectTimelineCursorStyles();
-
-  const plotWrap = ensurePlotWrap();
-
-  if (!plotWrap) {
-    return null;
-  }
-
-  let cursor = document.getElementById('plotCursor');
-
-  if (!cursor) {
-    cursor = document.createElement('div');
-    cursor.id = 'plotCursor';
-    cursor.className = 'plot-timeline-cursor';
-    cursor.setAttribute('role', 'slider');
-    cursor.setAttribute('aria-label', 'Current video time');
-    cursor.setAttribute('aria-valuemin', '0');
-    cursor.setAttribute('aria-valuemax', '0');
-    cursor.setAttribute('aria-valuenow', '0');
-    cursor.setAttribute('tabindex', '0');
-    cursor.setAttribute('title', 'Drag to change video time');
-
-    cursor.innerHTML = `
-      <div class="plot-timeline-cursor-bar"></div>
-      <div class="plot-timeline-cursor-handle">0.00s</div>
-    `;
-
-    plotWrap.appendChild(cursor);
-  } else {
-    cursor.classList.add('plot-timeline-cursor');
-
-    if (!cursor.querySelector('.plot-timeline-cursor-bar')) {
-      cursor.innerHTML = `
-        <div class="plot-timeline-cursor-bar"></div>
-        <div class="plot-timeline-cursor-handle">0.00s</div>
-      `;
-    }
-  }
-
-  return cursor;
-}
-
+  gd = graph div = the DOM element where Plotly draws.
+*/
 function getPlotGeometry() {
   const gd = document.getElementById('plot');
   const fullLayout = gd?._fullLayout;
@@ -206,13 +152,24 @@ function getPlotGeometry() {
     rect,
     xaxis,
     yaxis,
+
+    // Horizontal plotting area.
     leftPx: rect.left + xaxis._offset,
     rightPx: rect.left + xaxis._offset + xaxis._length,
+
+    // Main y-axis plotting area.
     topPx: yaxis ? rect.top + yaxis._offset : rect.top,
     bottomPx: yaxis ? rect.top + yaxis._offset + yaxis._length : rect.bottom
   };
 }
 
+
+/*
+  Convert a click in the visible main plot area to a time.
+
+  This respects the current zoom.
+  If the visible x-axis is [10, 20], clicking halfway means 15 seconds.
+*/
 function clientXToVisiblePlotTime(clientX) {
   const geometry = getPlotGeometry();
 
@@ -226,7 +183,6 @@ function clientXToVisiblePlotTime(clientX) {
     return null;
   }
 
-  const fraction = (clientX - leftPx) / (rightPx - leftPx);
   const x0 = Number(xaxis.range[0]);
   const x1 = Number(xaxis.range[1]);
 
@@ -234,9 +190,17 @@ function clientXToVisiblePlotTime(clientX) {
     return null;
   }
 
+  const fraction = (clientX - leftPx) / (rightPx - leftPx);
   return clampTime(x0 + fraction * (x1 - x0));
 }
 
+
+/*
+  Convert pointer position over the lower timeline to a full-duration time.
+
+  This ignores zoom and maps the full left-to-right width to:
+  0 seconds -> max duration
+*/
 function clientXToFullTimelineTime(clientX) {
   const geometry = getPlotGeometry();
 
@@ -260,10 +224,15 @@ function clientXToFullTimelineTime(clientX) {
   }
 
   const fraction = (clientX - leftPx) / (rightPx - leftPx);
-
   return clampTime(fraction * maxT);
 }
 
+
+/*
+  Convert current time to a pixel position inside plotWrap.
+
+  Used to position the HTML draggable cursor.
+*/
 function timeToFullTimelinePixel(time) {
   const geometry = getPlotGeometry();
 
@@ -281,20 +250,33 @@ function timeToFullTimelinePixel(time) {
   const safeTime = Math.max(0, Math.min(time, maxT));
   const fraction = safeTime / maxT;
 
+  /*
+    xaxis._offset is relative to the Plotly div.
+    Because plotCursor is inside plotWrap, this works as a left position.
+  */
   return xaxis._offset + fraction * xaxis._length;
 }
 
+
+/* ============================================================
+   BLOCK 4: HTML DRAGGABLE CURSOR
+
+   This cursor is defined in index.html:
+
+   <div id="plotCursor" class="plot-cursor">
+     <div class="plot-cursor-bar"></div>
+     <div class="plot-cursor-handle">0.00s</div>
+   </div>
+   ============================================================ */
+
 function updateHtmlTimelineCursor() {
-  const cursor = ensureTimelineCursor();
+  const cursor = document.getElementById('plotCursor');
 
   if (!cursor) {
     return;
   }
 
-  const handle =
-    cursor.querySelector('.plot-timeline-cursor-handle') ||
-    cursor.querySelector('.plot-cursor-handle');
-
+  const handle = cursor.querySelector('.plot-cursor-handle');
   const maxT = getPlotMaxTime(state.selectedMetric);
   const pixelX = timeToFullTimelinePixel(state.currentTime);
 
@@ -316,6 +298,19 @@ function updateHtmlTimelineCursor() {
   cursor.setAttribute('aria-valuenow', String(state.currentTime));
 }
 
+
+/* ============================================================
+   BLOCK 5: PLOT -> VIDEO INTERACTIONS
+
+   These listeners let the plot control the video.
+
+   1. Click main plot:
+      seek video to clicked time.
+
+   2. Drag lower cursor:
+      seek video continuously.
+   ============================================================ */
+
 function attachMainPlotSeek(gd) {
   if (!gd || gd.__timeSeriesMainPlotSeekAttached) {
     return;
@@ -324,6 +319,7 @@ function attachMainPlotSeek(gd) {
   gd.addEventListener('click', event => {
     const cursor = document.getElementById('plotCursor');
 
+    // Ignore clicks on the draggable cursor itself.
     if (cursor && cursor.contains(event.target)) {
       return;
     }
@@ -337,8 +333,8 @@ function attachMainPlotSeek(gd) {
     const { topPx, bottomPx } = geometry;
 
     /*
-      Only clicks in the main plot seek the video.
-      The lower Plotly rangeslider remains free for zooming.
+      Only clicks inside the main plot seek the video.
+      The lower Plotly rangeslider remains available for zooming.
     */
     if (event.clientY < topPx || event.clientY > bottomPx) {
       return;
@@ -358,8 +354,9 @@ function attachMainPlotSeek(gd) {
   gd.__timeSeriesMainPlotSeekAttached = true;
 }
 
+
 function attachTimelineCursorDrag(gd) {
-  const cursor = ensureTimelineCursor();
+  const cursor = document.getElementById('plotCursor');
 
   if (!gd || !cursor || cursor.__timeSeriesCursorDragAttached) {
     return;
@@ -412,6 +409,11 @@ function attachTimelineCursorDrag(gd) {
     cursor.classList.remove('is-dragging');
   });
 
+  /*
+    Keyboard support:
+    - ArrowLeft / ArrowRight = move 0.1 second
+    - Shift + ArrowLeft / ArrowRight = move 1 second
+  */
   cursor.addEventListener('keydown', event => {
     const smallStep = 0.1;
     const largeStep = 1.0;
@@ -434,6 +436,10 @@ function attachTimelineCursorDrag(gd) {
     }
   });
 
+  /*
+    When the user zooms using Plotly's lower rangeslider,
+    update the cursor position.
+  */
   if (typeof gd.on === 'function') {
     gd.on('plotly_relayout', () => {
       updateHtmlTimelineCursor();
@@ -443,6 +449,17 @@ function attachTimelineCursorDrag(gd) {
   cursor.__timeSeriesCursorDragAttached = true;
 }
 
+
+/* ============================================================
+   BLOCK 6: BUILD PLOTLY TRACES
+
+   A trace is one line in Plotly.
+
+   The app can draw:
+   - one line per selected subject
+   - one thicker average line
+   ============================================================ */
+
 function buildTraces() {
   const selected = getSelectedSubjects();
   const metric = state.selectedMetric;
@@ -451,6 +468,9 @@ function buildTraces() {
   const showIndividuals = showIndividualsEl?.checked ?? true;
   const showAverage = showAverageEl?.checked ?? true;
 
+  /*
+    Individual subject traces.
+  */
   if (metric && showIndividuals) {
     for (const subject of selected) {
       const series = getSeries(subject, metric);
@@ -470,6 +490,9 @@ function buildTraces() {
     }
   }
 
+  /*
+    Average trace.
+  */
   if (metric && showAverage) {
     const average = computeAverage(selected, metric);
 
@@ -490,14 +513,24 @@ function buildTraces() {
   return traces;
 }
 
+
+/* ============================================================
+   BLOCK 7: CREATE / REDRAW THE PLOT
+
+   makePlot() is called when:
+   - the page first loads
+   - data is uploaded
+   - metric changes
+   - selected subjects change
+   - display options change
+   ============================================================ */
+
 function makePlot() {
   const plot = document.getElementById('plot');
 
   if (!plot) {
     return;
   }
-
-  ensureTimelineCursor();
 
   const metric = state.selectedMetric;
   const traces = buildTraces();
@@ -507,14 +540,28 @@ function makePlot() {
 
   const layout = {
     title: metric ? `Metric: ${metric}` : 'Load data to begin',
+
     template: 'plotly_white',
+
+    /*
+      dragmode false avoids accidental zoom/pan in the main plot.
+      Users can still zoom with the lower rangeslider.
+    */
     dragmode: false,
+
+    /*
+      uirevision tells Plotly to preserve some UI state between redraws.
+    */
     uirevision: metric || 'empty',
 
     xaxis: {
       title: 'Time',
       range: maxT > 0 ? [0, maxT] : undefined,
       fixedrange: false,
+
+      /*
+        This is Plotly's built-in lower zoomable plot.
+      */
       rangeslider: {
         visible: true,
         thickness: 0.18
@@ -528,6 +575,10 @@ function makePlot() {
 
     hovermode: 'x unified',
 
+    /*
+      Plotly vertical line.
+      This follows state.currentTime.
+    */
     shapes: [
       {
         type: 'line',
@@ -556,6 +607,11 @@ function makePlot() {
     displaylogo: false,
     scrollZoom: false,
     doubleClick: false,
+
+    /*
+      Remove modebar buttons we do not need.
+      The lower rangeslider is the intended zoom control.
+    */
     modeBarButtonsToRemove: [
       'zoom2d',
       'pan2d',
@@ -574,6 +630,14 @@ function makePlot() {
     updateCursor(true);
   });
 }
+
+
+/* ============================================================
+   BLOCK 8: UPDATE THE PLOTLY VERTICAL LINE
+
+   The HTML cursor is light and moves immediately.
+   Plotly.relayout is heavier, so it is throttled.
+   ============================================================ */
 
 function computeCursorRelayoutUpdate() {
   const gd = document.getElementById('plot');
@@ -595,8 +659,8 @@ function computeCursorRelayoutUpdate() {
   };
 
   /*
-    If the user zoomed the main plot using the lower rangeslider,
-    keep the visible main plot following the video cursor.
+    If the user zoomed into a smaller time window using the lower
+    Plotly rangeslider, keep the main visible plot following the cursor.
   */
   if (xaxis && Array.isArray(xaxis.range) && maxT > 0) {
     let x0 = Number(xaxis.range[0]);
@@ -629,12 +693,12 @@ function computeCursorRelayoutUpdate() {
   return relayoutUpdate;
 }
 
+
 function runCursorRelayout(force = false) {
   const now = performance.now();
 
   /*
-    Plotly relayout is heavier than moving the HTML cursor.
-    Limit it to about 30 fps unless forced.
+    Limit Plotly cursor redraws to roughly 30 fps unless forced.
   */
   if (!force && now - lastCursorRelayoutAt < 33) {
     pendingCursorRelayout = true;
@@ -656,7 +720,13 @@ function runCursorRelayout(force = false) {
   cursorRelayoutInFlight = true;
 
   Plotly.relayout('plot', relayoutUpdate)
-    .catch(() => {})
+    .catch(() => {
+      /*
+        Ignore relayout errors.
+
+        They can happen briefly while the plot is being recreated.
+      */
+    })
     .finally(() => {
       cursorRelayoutInFlight = false;
 
@@ -667,6 +737,14 @@ function runCursorRelayout(force = false) {
     });
 }
 
+
+/*
+  Public function used by data.js.
+
+  This updates:
+  - custom HTML cursor
+  - Plotly vertical line
+*/
 function updateCursor(force = false) {
   updateHtmlTimelineCursor();
   runCursorRelayout(force);
