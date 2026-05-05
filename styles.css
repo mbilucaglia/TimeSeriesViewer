@@ -312,20 +312,14 @@ button:disabled {
   position: absolute;
 
   /*
-    JavaScript updates the left position dynamically.
-    Example:
-    cursor.style.left = "250px";
+    JavaScript now controls both left and top.
+    Do not use fixed bottom positioning anymore.
   */
   left: 0;
-
-  /*
-    This places the cursor visually over the lower Plotly rangeslider.
-    If it appears too high or too low, adjust this value.
-  */
-  bottom: 34px;
+  top: 0;
 
   width: 86px;
-  height: 96px;
+  height: 80px;
 
   transform: translateX(-50%);
   z-index: 50;
