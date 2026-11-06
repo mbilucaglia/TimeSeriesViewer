@@ -1,278 +1,148 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
-  <!--
-    ============================================================
-    FILE: index.html
-
-    This file defines the STRUCTURE of the web page.
-
-    Think of it as the skeleton:
-    - where the video appears
-    - where the plot appears
-    - where buttons and controls appear
-    - which JavaScript and CSS files are loaded
-    ============================================================
-  -->
-
   <meta charset="UTF-8" />
-
-  <!-- Makes the page adapt better to phones/tablets/smaller screens. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <title>Subject Time-Series Viewer</title>
-
-  <!--
-    Plotly is the external library used to draw the interactive plot.
-    It must be loaded before our own plot.js file.
-  -->
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-
-  <!-- Our CSS file controls how the page looks. -->
+  <meta name="description" content="Visualizza e confronta serie temporali di più soggetti, con supporto per file Excel e video sincronizzati." />
+  <title>Behavior &amp; Brain Lab — Time-Series Viewer</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://cdn.plot.ly" />
+  <link rel="preconnect" href="https://cdn.sheetjs.com" />
 </head>
 
 <body>
-  <!--
-    Main page wrapper.
-    This keeps the content centered and prevents it from becoming too wide.
-  -->
   <div class="wrap">
-
-    <!-- =========================================================
-         PAGE HEADER
-         ========================================================= -->
     <header class="page-header">
-      <h1>Subject Time-Series Viewer</h1>
-
-      <p class="page-subtitle">
-        Upload one video and one long-format CSV/TXT/TSV signal file.
-        Then select subjects, choose a metric, and inspect the synchronized
-        video and time-series plot.
-      </p>
+      <div class="header-content">
+        <div>
+          <div class="eyebrow">Behavior &amp; Brain Lab · strumenti di ricerca</div>
+          <div class="brand-line">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M1 17h7l4-11 6 21 4-13 3 3h6" fill="none" stroke="#c1c2df" stroke-width="2.5" stroke-linejoin="round" />
+            </svg>
+            <h1>Time-Series Viewer</h1>
+          </div>
+          <p class="muted">Esplora i segnali per soggetto e confronta media e variabilità nel tempo.</p>
+        </div>
+        <div class="privacy"><span aria-hidden="true">●</span> Analisi sul dispositivo · File non inviati</div>
+      </div>
     </header>
 
-    <!--
-      Main app layout.
-
-      The CSS grid places:
-      - video on the upper-left
-      - plot on the lower-left
-      - controls/sidebar on the right
-    -->
     <main class="app-layout">
-
-      <!-- =======================================================
-           BLOCK 1: VIDEO PANEL
-           ======================================================= -->
-      <section class="card video-panel">
-        <h2 class="section-title">1) Video</h2>
-
-        <!--
-          The browser's built-in video player.
-
-          JavaScript uses this element through:
-          const videoEl = document.getElementById('video');
-        -->
-        <video id="video" controls></video>
-
-        <p class="small mt12">
-          The video is the master clock during playback. When the video plays,
-          the plot cursor follows the video time.
-        </p>
+      <section class="card import-panel" aria-labelledby="importTitle">
+        <div class="import-copy">
+          <div class="step-label"><span>01</span> INIZIA</div>
+          <h2 id="importTitle" class="section-title">Carica i dati della sessione</h2>
+          <p class="panel-note">Importa una serie temporale per attivare grafico, selezione dei soggetti e statistiche.</p>
+        </div>
+        <label class="file file-primary">
+          <span class="file-icon" aria-hidden="true">＋</span> Scegli file segnali
+          <input id="signalFiles" type="file" accept=".csv,.txt,.tsv,.xlsx,.xls" aria-label="Carica file segnali CSV, TXT, TSV o Excel" />
+        </label>
+        <div class="format-hints">
+          <span>CSV/TXT/TSV: <code>time_s, subject_id, metriche…</code></span>
+          <span>XLSX: un foglio per serie, con colonna <code>Time [s]</code></span>
+          <span>Nei workbook, metrica e condizione vengono dal nome del foglio.</span>
+        </div>
       </section>
 
-      <!-- =======================================================
-           BLOCK 2: PLOT PANEL
-           ======================================================= -->
-      <section class="card plot-panel">
+      <section class="card controls-panel" aria-label="Impostazioni del grafico">
+        <div class="control-block metric-control">
+          <label class="field-label" for="metricSelect">Metrica</label>
+          <select id="metricSelect" aria-label="Metrica da visualizzare o mediare" disabled></select>
+        </div>
+        <div id="conditionControl" class="control-block condition-control" hidden>
+          <label id="conditionLabel" class="field-label" for="conditionSelect">Condizione</label>
+          <select id="conditionSelect" aria-label="Condizione da visualizzare" disabled></select>
+        </div>
+        <fieldset class="display-control">
+          <legend class="field-label">Mostra</legend>
+          <div class="display-options">
+            <label class="check-option"><input type="checkbox" id="showIndividuals" checked /> <span>Soggetti</span></label>
+            <label class="check-option"><input type="checkbox" id="showAverage" checked /> <span>Media + IC 95%</span></label>
+          </div>
+        </fieldset>
+        <button id="downloadAverageBtn" class="export-button" type="button" disabled>Esporta media CSV</button>
+        <div id="errors" class="danger" role="status" aria-live="polite"></div>
+      </section>
 
-        <!-- Header row: title on the left, current time on the right. -->
-        <div class="row space-between mb10">
-          <h2 class="section-title">2) Plot</h2>
-
-          <!--
-            Current time label.
-            JavaScript updates this every time the current time changes.
-          -->
-          <span id="timeLabel" class="pill">0.00 s</span>
+      <section class="card plot-panel" aria-labelledby="plotTitle">
+        <div class="panel-heading panel-heading-inline">
+          <div>
+            <div class="step-label"><span>02</span> ESPLORA</div>
+            <h2 id="plotTitle" class="section-title">Segnali nel tempo</h2>
+          </div>
+          <span id="timeLabel" class="time-readout" aria-live="off">0.00 <small>s</small></span>
         </div>
 
-        <!--
-          plotWrap is important.
-
-          It allows us to place an HTML draggable cursor above the Plotly plot.
-          The Plotly plot itself lives inside #plot.
-        -->
         <div id="plotWrap" class="plot-wrap">
-
-          <!--
-            Plotly draws the main plot and lower zoomable rangeslider here.
-          -->
-          <div id="plot"></div>
-
-          <!--
-            Custom draggable cursor.
-
-            This is NOT the Plotly vertical line.
-            This is an HTML overlay that sits visually over the lower Plotly
-            rangeslider and can be dragged left/right.
-
-            Dragging it updates:
-            - state.currentTime
-            - video.currentTime
-            - Plotly vertical cursor
-            - time label
-          -->
-          <div
-            id="plotCursor"
-            class="plot-cursor"
-            role="slider"
-            aria-label="Current video time"
-            aria-valuemin="0"
-            aria-valuemax="0"
-            aria-valuenow="0"
-            tabindex="0"
-            title="Drag to change video time"
-          >
-            <div class="plot-cursor-bar"></div>
-            <div class="plot-cursor-handle">0.00s</div>
-          </div>
+          <div id="plot" aria-label="Grafico interattivo dei segnali temporali"></div>
+        </div>
+        <div class="plot-footer">
+          <p class="panel-note">Fai clic sul grafico o trascina il cursore per spostarti nel tempo. La barra inferiore regola lo zoom.</p>
+          <span class="ci-note">La banda mostra l’intervallo di confidenza al 95%; richiede almeno 2 soggetti selezionati.</span>
         </div>
 
-        <p class="small mt12">
-          Video → plot: play or seek the video. Plot → video: click the main plot
-          or drag the rounded cursor in the lower zoomable plot.
-        </p>
+        <details class="video-dock">
+          <summary><span class="step-label"><span>03</span> OPZIONALE</span><strong>Collega un video</strong><span class="video-summary-note">Sincronizza la riproduzione con il cursore temporale</span></summary>
+          <div class="video-content">
+            <label class="file">
+              <span class="file-icon" aria-hidden="true">▶</span> Scegli file video
+              <input id="videoFile" type="file" accept="video/*" aria-label="Carica file video" />
+            </label>
+            <video id="video" controls aria-label="Video caricato"></video>
+          </div>
+        </details>
       </section>
 
-      <!-- =======================================================
-           BLOCK 3: SIDEBAR / CONTROLS
-           ======================================================= -->
-      <aside class="card sidebar">
-
-        <!-- Sidebar title and short instructions. -->
-        <div class="row space-between mb10">
+      <aside class="card subjects-panel" aria-labelledby="subjectsTitle">
+        <div class="subjects-heading">
           <div>
-            <h2 class="section-title">3) Controls</h2>
-
-            <div class="small">
-              Signal file format:
-              <b>time_s, subject_id, metric columns...</b>
-            </div>
+            <div class="step-label"><span>04</span> CAMPIONE</div>
+            <h2 id="subjectsTitle" class="section-title">Soggetti</h2>
           </div>
-
-          <span class="pill">No install needed</span>
+          <span class="local-badge">Locale</span>
         </div>
-
-        <!-- -------------------------------------------------------
-             File upload and action buttons
-             ------------------------------------------------------- -->
-        <div class="row">
-
-          <!--
-            Hidden file input styled as a button.
-            JavaScript listens to #signalFiles.
-          -->
-          <label class="file">
-            Upload signals
-            <input id="signalFiles" type="file" accept=".csv,.txt,.tsv" />
-          </label>
-
-          <!--
-            Hidden video input styled as a button.
-            JavaScript listens to #videoFile.
-          -->
-          <label class="file">
-            Upload video
-            <input id="videoFile" type="file" accept="video/*" />
-          </label>
-
-          <button id="selectAllBtn">Select all</button>
-          <button id="selectNoneBtn">Select none</button>
-          <button id="downloadAverageBtn">Export average CSV</button>
+        <div class="meta" aria-label="Riepilogo dati">
+          <div class="meta-item"><span id="metaSubjects">Soggetti: 0</span></div>
+          <div class="meta-item"><span id="metaMetrics">Metriche: 0</span></div>
+          <div class="meta-item meta-selected"><span id="metaSelected">Selezionati: 0</span></div>
         </div>
-
-        <!-- -------------------------------------------------------
-             Metric selector and display options
-             ------------------------------------------------------- -->
-        <div class="controls-grid">
-
-          <!-- JavaScript fills this dropdown with detected metric names. -->
-          <div>
-            <div class="small mb6">Metric to display / average</div>
-            <select id="metricSelect"></select>
-          </div>
-
-          <!-- Checkboxes that decide what the plot shows. -->
-          <div>
-            <div class="small mb6">Display mode</div>
-
-            <div class="row">
-              <label>
-                <input type="checkbox" id="showIndividuals" checked />
-                Show individual traces
-              </label>
-
-              <label>
-                <input type="checkbox" id="showAverage" checked />
-                Show average
-              </label>
-            </div>
-          </div>
+        <div class="selection-actions" aria-label="Selezione soggetti">
+          <button id="selectAllBtn" type="button" disabled>Seleziona tutti</button>
+          <button id="selectNoneBtn" type="button" disabled>Deseleziona</button>
         </div>
-
-        <!-- -------------------------------------------------------
-             Metadata pills
-             ------------------------------------------------------- -->
-        <div class="meta">
-          <div class="pill" id="metaSubjects">Subjects: 0</div>
-          <div class="pill" id="metaMetrics">Metrics: 0</div>
-          <div class="pill" id="metaSelected">Selected: 0</div>
-        </div>
-
-        <!-- JavaScript writes user-facing errors here. -->
-        <div id="errors" class="danger mt12"></div>
-
-        <!-- -------------------------------------------------------
-             Subject table
-             ------------------------------------------------------- -->
         <div class="sidebar-table-wrap">
           <table id="subjectsTable">
             <thead>
               <tr>
-                <th class="col-select">Select</th>
-                <th class="col-subject">Subject ID</th>
-                <th class="col-metrics">Metrics</th>
-                <th class="col-points">Points</th>
-                <th class="col-range">Time range</th>
-                <th class="col-remove">Remove</th>
+                <th class="col-select">Sel.</th>
+                <th class="col-subject">ID soggetto</th>
+                <th class="col-points">Punti</th>
+                <th class="col-remove"><span class="visually-hidden">Rimuovi</span></th>
               </tr>
             </thead>
-
-            <!-- JavaScript creates one row per subject inside this tbody. -->
             <tbody></tbody>
           </table>
+          <p id="emptySubjects" class="empty-state">Carica un file per visualizzare i soggetti.</p>
         </div>
       </aside>
     </main>
   </div>
 
-  <!--
-    IMPORTANT SCRIPT ORDER
+  <div id="loadingOverlay" class="loading-overlay" hidden>
+    <div id="loadingDialog" class="loading-dialog" role="dialog" aria-modal="true" aria-labelledby="loadingTitle" aria-describedby="loadingMessage" tabindex="-1">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <div>
+        <h2 id="loadingTitle">Caricamento dati</h2>
+        <p id="loadingMessage" aria-live="polite">Preparazione del file…</p>
+      </div>
+    </div>
+  </div>
 
-    plot.js is loaded first because it defines plotting functions such as:
-    - makePlot()
-    - updateCursor()
-    - getSignalMaxTime()
-
-    data.js is loaded second because it:
-    - reads data files
-    - defines the app state
-    - connects UI buttons
-    - calls makePlot()
-  -->
-  <script src="plot.js"></script>
-  <script src="data.js"></script>
+  <script defer src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script defer src="data.js"></script>
+  <script defer src="plot.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>
