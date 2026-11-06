@@ -34,6 +34,60 @@ function getSeries(subject, metric, condition = '') {
   return subject?.dataByMetric?.[metric]?.[condition] || [];
 }
 
+function getOutlierFlags(subjects, metric, condition = '') {
+  const minimumGroupSize = 5;
+  const zThreshold = 3.5;
+  const minimumDeviatingPoints = 3;
+  const minimumDeviatingFraction = 0.1;
+  const byTime = new Map();
+  const flags = new Map(subjects.map(subject => [subject.id, { status: 'insufficient', tested: 0, deviating: 0 }]));
+
+  for (const subject of subjects) {
+    for (const point of getSeries(subject, metric, condition)) {
+      if (!Number.isFinite(point.time) || !Number.isFinite(point.value)) continue;
+      if (!byTime.has(point.time)) byTime.set(point.time, []);
+      byTime.get(point.time).push({ subjectId: subject.id, value: point.value });
+    }
+  }
+
+  for (const valuesAtTime of byTime.values()) {
+    if (valuesAtTime.length < minimumGroupSize) continue;
+
+    const values = valuesAtTime.map(item => item.value);
+    const center = median(values);
+    const mad = median(values.map(value => Math.abs(value - center)));
+    const zeroScaleTolerance = Number.EPSILON * Math.max(1, Math.abs(center)) * 16;
+
+    for (const item of valuesAtTime) {
+      const flag = flags.get(item.subjectId);
+      flag.tested++;
+      const deviation = Math.abs(item.value - center);
+      const robustZ = mad > zeroScaleTolerance ? 0.6745 * deviation / mad : deviation > zeroScaleTolerance ? Infinity : 0;
+      if (robustZ > zThreshold) flag.deviating++;
+    }
+  }
+
+  for (const flag of flags.values()) {
+    const requiredPoints = Math.max(minimumDeviatingPoints, Math.ceil(flag.tested * minimumDeviatingFraction));
+    flag.status = flag.tested < minimumDeviatingPoints
+      ? 'insufficient'
+      : flag.deviating >= requiredPoints
+        ? 'flagged'
+        : 'within';
+    flag.fraction = flag.tested ? flag.deviating / flag.tested : 0;
+  }
+
+  return flags;
+}
+
+function median(values) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
 function computeAverage(subjects, metric, condition = '') {
   const seriesList = subjects
     .filter(subject => subject.selected)
@@ -374,5 +428,5 @@ function yieldToBrowser() {
   return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
 }
 
-global.TimeSeriesData = Object.freeze({ readSignalFile, getMetrics, getConditions, getSeries, computeAverage });
+global.TimeSeriesData = Object.freeze({ readSignalFile, getMetrics, getConditions, getSeries, getOutlierFlags, computeAverage });
 })(globalThis);

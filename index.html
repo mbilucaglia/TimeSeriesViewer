@@ -119,6 +119,7 @@
                 <th class="col-select">Sel.</th>
                 <th class="col-subject">ID soggetto</th>
                 <th class="col-points">Punti</th>
+                <th class="col-outlier" title="Segnalazione automatica per la metrica e la condizione selezionate">Outlier</th>
                 <th class="col-remove"><span class="visually-hidden">Rimuovi</span></th>
               </tr>
             </thead>
@@ -126,6 +127,10 @@
           </table>
           <p id="emptySubjects" class="empty-state">Carica un file per visualizzare i soggetti.</p>
         </div>
+        <details class="outlier-help">
+          <summary>Come funziona il flag</summary>
+          <p>Segnalazione esplorativa per la metrica e la condizione selezionate: z-score robusto oltre 3,5 in almeno 10% degli istanti (minimo 3), con almeno 5 soggetti confrontabili. Non esclude nessuno dalla media.</p>
+        </details>
       </aside>
     </main>
   </div>

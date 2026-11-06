@@ -145,6 +145,13 @@ tbody tr:hover { background: #fafafe; }
 td input[type="checkbox"] { accent-color: var(--accent); }
 td input[type="text"] { width: 100%; min-width: 75px; min-height: 29px; padding: 5px 6px; font-size: 10px; }
 td button { min-height: 25px; padding: 2px 6px; border-color: transparent; color: var(--danger); background: transparent; }
+.outlier-badge { display: inline-flex; min-width: 48px; justify-content: center; padding: 4px 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface-soft); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.outlier-flagged { border-color: #e8c28b; color: #81500b; background: #fff4df; }
+.outlier-within { border-color: #c9e2d7; color: #236449; background: #edf7f2; }
+.outlier-insufficient { color: #777594; background: #f5f5f9; }
+.outlier-help { margin-top: 10px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.outlier-help summary { width: fit-content; color: var(--accent); cursor: pointer; font-weight: 600; }
+.outlier-help p { margin: 6px 0 0; }
 .empty-state { margin: 0; padding: 18px 12px; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
 [hidden] { display: none !important; }

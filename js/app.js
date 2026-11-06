@@ -1,5 +1,5 @@
 (function (global) {
-const { computeAverage, getConditions, getMetrics, getSeries, readSignalFile } = global.TimeSeriesData;
+const { computeAverage, getConditions, getMetrics, getOutlierFlags, getSeries, readSignalFile } = global.TimeSeriesData;
 const { createPlot } = global.TimeSeriesPlot;
 
 const elements = Object.fromEntries([
@@ -18,7 +18,8 @@ const state = {
   currentTime: 0,
   videoUrl: null,
   showIndividuals: true,
-  showAverage: true
+  showAverage: true,
+  outlierFlags: new Map()
 };
 
 let renderQueue = Promise.resolve();
@@ -86,6 +87,7 @@ function refreshSelectors() {
   const hasConditions = state.conditions.some(condition => condition !== '');
   elements.conditionControl.hidden = !hasConditions;
   elements.conditionLabel.hidden = !hasConditions;
+  state.outlierFlags = getOutlierFlags(state.subjects, state.selectedMetric, state.selectedCondition);
 }
 
 function replaceOptions(select, options, selectedValue) {
@@ -139,6 +141,16 @@ function renderSubjectTable() {
     const pointsCell = document.createElement('td');
     pointsCell.textContent = String(subject.points);
 
+    const outlierCell = document.createElement('td');
+    const outlierFlag = state.outlierFlags.get(subject.id);
+    const outlierBadge = document.createElement('span');
+    outlierBadge.className = `outlier-badge outlier-${outlierFlag?.status || 'insufficient'}`;
+    outlierBadge.textContent = outlierFlag?.status === 'flagged'
+      ? 'Possibile'
+      : outlierFlag?.status === 'within' ? 'No' : 'N/D';
+    outlierBadge.title = describeOutlierFlag(outlierFlag);
+    outlierCell.append(outlierBadge);
+
     const removeCell = document.createElement('td');
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
@@ -149,13 +161,23 @@ function renderSubjectTable() {
     removeButton.dataset.id = subject.id;
     removeCell.append(removeButton);
 
-    row.append(selectionCell, nameCell, pointsCell, removeCell);
+    row.append(selectionCell, nameCell, pointsCell, outlierCell, removeCell);
     fragment.append(row);
   }
 
   body.replaceChildren(fragment);
   elements.emptySubjects.hidden = state.subjects.length > 0;
   refreshMetadata();
+}
+
+function describeOutlierFlag(flag) {
+  if (!flag || flag.status === 'insufficient') {
+    return 'Non valutabile: servono almeno 3 istanti confrontabili con almeno 5 soggetti.';
+  }
+  if (flag.status === 'flagged') {
+    return `Possibile outlier: ${flag.deviating} di ${flag.tested} istanti oltre la soglia (${(flag.fraction * 100).toFixed(1)}%). Non viene escluso automaticamente.`;
+  }
+  return `Nessuna segnalazione: ${flag.deviating} di ${flag.tested} istanti oltre la soglia. Il soggetto resta incluso se selezionato.`;
 }
 
 function refreshApp({ renderTable = true } = {}) {
@@ -292,13 +314,12 @@ elements.videoFile.addEventListener('change', event => {
 elements.metricSelect.addEventListener('change', () => {
   state.selectedMetric = elements.metricSelect.value;
   state.selectedCondition = '';
-  void refreshApp({ renderTable: false });
+  void refreshApp();
 });
 
 elements.conditionSelect.addEventListener('change', () => {
   state.selectedCondition = elements.conditionSelect.value;
-  setCurrentTime(state.currentTime, false);
-  void renderPlot();
+  void refreshApp();
 });
 
 elements.showIndividuals.addEventListener('change', () => {
