@@ -57,7 +57,19 @@ function renderPlot() {
 function clearHighlightedSubject() {
   if (!state.highlightedSubjectId) return;
   state.highlightedSubjectId = null;
+  refreshIsolationButtons();
   void renderPlot();
+}
+
+function refreshIsolationButtons() {
+  for (const button of elements.subjectsTable.querySelectorAll('[data-action="isolate"]')) {
+    const subject = state.subjects.find(item => item.id === button.dataset.id);
+    const isActive = state.highlightedSubjectId === button.dataset.id;
+    button.setAttribute('aria-pressed', String(isActive));
+    button.title = subject?.selected
+      ? `${isActive ? 'Ripristina' : 'Isola'} la curva di ${subject.subjectId}`
+      : 'Seleziona il soggetto per isolare la curva';
+  }
 }
 
 function setCurrentTime(nextTime, syncVideo = true) {
@@ -130,7 +142,6 @@ function renderSubjectTable() {
   for (const subject of state.subjects) {
     const row = document.createElement('tr');
     row.dataset.subjectId = subject.id;
-    row.title = 'Clicca per evidenziare temporaneamente la curva; clicca fuori dalla lista per annullare.';
     const selectionCell = document.createElement('td');
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -147,7 +158,22 @@ function renderSubjectTable() {
     nameInput.dataset.action = 'rename';
     nameInput.dataset.id = subject.id;
     nameInput.setAttribute('aria-label', `Nome soggetto ${subject.subjectId}`);
-    nameCell.append(nameInput);
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'subject-name-wrap';
+    const isolateButton = document.createElement('button');
+    isolateButton.type = 'button';
+    isolateButton.className = 'trace-isolate-button';
+    isolateButton.textContent = '◎';
+    isolateButton.title = subject.selected
+      ? `Isola la curva di ${subject.subjectId}`
+      : 'Seleziona il soggetto per isolare la curva';
+    isolateButton.setAttribute('aria-label', `Isola traccia ${subject.subjectId}`);
+    isolateButton.setAttribute('aria-pressed', String(state.highlightedSubjectId === subject.id));
+    isolateButton.disabled = !subject.selected;
+    isolateButton.dataset.action = 'isolate';
+    isolateButton.dataset.id = subject.id;
+    nameWrap.append(nameInput, isolateButton);
+    nameCell.append(nameWrap);
 
     const pointsCell = document.createElement('td');
     pointsCell.textContent = String(subject.points);
@@ -384,12 +410,23 @@ elements.subjectsTable.tBodies[0].addEventListener('change', event => {
   const subject = state.subjects.find(item => item.id === control.dataset.id);
   if (!subject) return;
   subject.selected = control.checked;
-  refreshMetadata();
+  if (!subject.selected && state.highlightedSubjectId === subject.id) state.highlightedSubjectId = null;
+  renderSubjectTable();
   setCurrentTime(state.currentTime, false);
   void renderPlot();
 });
 
 elements.subjectsTable.tBodies[0].addEventListener('click', event => {
+  const isolateControl = event.target.closest('[data-action="isolate"]');
+  if (isolateControl) {
+    const subject = state.subjects.find(item => item.id === isolateControl.dataset.id);
+    if (!subject?.selected) return;
+    state.highlightedSubjectId = state.highlightedSubjectId === subject.id ? null : subject.id;
+    refreshIsolationButtons();
+    void renderPlot();
+    return;
+  }
+
   const control = event.target.closest('[data-action="remove"]');
   if (control) {
     clearHighlightedSubject();
@@ -398,17 +435,11 @@ elements.subjectsTable.tBodies[0].addEventListener('click', event => {
     return;
   }
 
-  const row = event.target.closest('tr[data-subject-id]');
-  if (row) {
-    state.highlightedSubjectId = row.dataset.subjectId;
-    void renderPlot();
-  } else {
-    clearHighlightedSubject();
-  }
+  clearHighlightedSubject();
 });
 
 document.addEventListener('click', event => {
-  if (event.target.closest('#subjectsTable tbody tr[data-subject-id]')) return;
+  if (event.composedPath().includes(elements.subjectsTable.tBodies[0])) return;
   clearHighlightedSubject();
 });
 

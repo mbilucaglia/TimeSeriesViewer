@@ -144,11 +144,13 @@ th { position: sticky; top: 0; z-index: 1; padding: 10px 7px; color: var(--muted
 td { padding: 7px; border-bottom: 1px solid #e7e5f1; color: #4e4c70; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fafafe; }
-.subjects-panel tbody tr[data-subject-id] { cursor: pointer; }
-.subjects-panel tbody tr[data-subject-id]:focus-visible { outline: 2px solid #5e54a2; outline-offset: -2px; }
 td input[type="checkbox"] { accent-color: var(--accent); }
 td input[type="text"] { width: 100%; min-width: 75px; min-height: 29px; padding: 5px 6px; font-size: 10px; }
+td .subject-name-wrap { display: flex; min-width: 0; align-items: center; gap: 3px; }
+td .subject-name-wrap input[type="text"] { min-width: 0; flex: 1; }
 td button { min-height: 25px; padding: 2px 6px; border-color: transparent; color: var(--danger); background: transparent; }
+td .trace-isolate-button { width: 27px; min-width: 27px; min-height: 27px; flex: none; padding: 0; border-color: #d6d2ed; border-radius: 6px; color: var(--accent); background: var(--accent-soft); font-size: 15px; line-height: 1; }
+td .trace-isolate-button:hover:not(:disabled), td .trace-isolate-button[aria-pressed="true"] { border-color: var(--accent); color: white; background: var(--accent); }
 .outlier-badge { display: inline-flex; min-width: 48px; justify-content: center; padding: 4px 6px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: var(--surface-soft); font-size: 9px; font-weight: 700; white-space: nowrap; }
 .outlier-flagged { border-color: #e8c28b; color: #81500b; background: #fff4df; }
 .outlier-within { border-color: #c9e2d7; color: #236449; background: #edf7f2; }
