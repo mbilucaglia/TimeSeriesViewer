@@ -5,7 +5,7 @@ const { createPlot } = global.TimeSeriesPlot;
 const elements = Object.fromEntries([
   'signalFiles', 'videoFile', 'video', 'errors', 'subjectsTable', 'metricSelect', 'conditionSelect',
   'conditionControl', 'conditionLabel', 'outlierMethodSelect', 'showIndividuals', 'showAverage', 'selectAllBtn', 'selectNoneBtn',
-  'downloadAverageBtn', 'metaSubjects', 'metaMetrics', 'metaSelected', 'timeLabel', 'emptySubjects',
+  'downloadAverageBtn', 'metaSubjects', 'metaMetrics', 'metaSelected', 'timeLabel', 'emptySubjects', 'plotPlaceholder',
   'loadingOverlay', 'loadingDialog', 'loadingMessage'
 ].map(id => [id, document.getElementById(id)]));
 
@@ -27,6 +27,7 @@ const state = {
 let renderQueue = Promise.resolve();
 let videoFrame = null;
 let focusBeforeLoading = null;
+let plotlyLoadPromise = null;
 
 const selectedSubjects = () => state.subjects.filter(subject => subject.selected);
 const maxSignalTime = () => selectedSubjects().reduce((maximum, subject) => {
@@ -49,9 +50,82 @@ function showMessage(message = '') {
 
 function renderPlot() {
   renderQueue = renderQueue
-    .then(() => plot.render())
-    .catch(error => showMessage(`Impossibile aggiornare il grafico: ${error.message}`));
+    .then(async () => {
+      const hasChartContent = state.subjects.length > 0 || Boolean(state.videoUrl);
+      if (!hasChartContent) {
+        elements.plotPlaceholder.textContent = 'Carica un file di segnali per visualizzare il grafico.';
+        elements.plotPlaceholder.hidden = false;
+        showMessage('');
+        return;
+      }
+
+      elements.plotPlaceholder.textContent = 'Caricamento del grafico…';
+      elements.plotPlaceholder.hidden = false;
+      await loadPlotly();
+      await plot.render();
+      elements.plotPlaceholder.hidden = true;
+    })
+    .catch(error => {
+      elements.plotPlaceholder.textContent = 'Grafico non disponibile. Controlla la connessione e riprova.';
+      elements.plotPlaceholder.hidden = false;
+      showMessage(`Impossibile aggiornare il grafico: ${error.message}`);
+    });
   return renderQueue;
+}
+
+function loadPlotly() {
+  const isPlotlyAvailable = () => typeof globalThis.Plotly?.newPlot === 'function'
+    && typeof globalThis.Plotly?.react === 'function';
+  if (isPlotlyAvailable()) return Promise.resolve(globalThis.Plotly);
+  if (plotlyLoadPromise) return plotlyLoadPromise;
+
+  const sources = [
+    'https://cdn.plot.ly/plotly-2.35.2.min.js',
+    'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js'
+  ];
+
+  plotlyLoadPromise = new Promise((resolve, reject) => {
+    let sourceIndex = 0;
+
+    const loadNextSource = () => {
+      if (sourceIndex >= sources.length) {
+        plotlyLoadPromise = null;
+        reject(new Error('Non è stato possibile caricare la libreria Plotly.'));
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = sources[sourceIndex++];
+      script.async = true;
+      let completed = false;
+      const timeout = setTimeout(() => {
+        if (completed) return;
+        completed = true;
+        script.remove();
+        loadNextSource();
+      }, 10000);
+
+      script.onload = () => {
+        if (completed) return;
+        completed = true;
+        clearTimeout(timeout);
+        if (isPlotlyAvailable()) resolve(globalThis.Plotly);
+        else loadNextSource();
+      };
+      script.onerror = () => {
+        if (completed) return;
+        completed = true;
+        clearTimeout(timeout);
+        loadNextSource();
+      };
+
+      document.head.append(script);
+    };
+
+    loadNextSource();
+  });
+
+  return plotlyLoadPromise;
 }
 
 function clearHighlightedSubject() {
