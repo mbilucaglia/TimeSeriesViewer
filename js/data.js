@@ -47,6 +47,10 @@ function getOutlierFlags(subjects, metric, condition = '', method = 'iqr') {
     return flags;
   }
 
+  if (method === 'mean-iqr') {
+    return getTemporalMeanOutlierFlags(subjects, metric, condition, minimumGroupSize, flags);
+  }
+
   for (const subject of subjects) {
     for (const point of getSeries(subject, metric, condition)) {
       if (!Number.isFinite(point.time) || !Number.isFinite(point.value)) continue;
@@ -88,6 +92,58 @@ function getOutlierFlags(subjects, metric, condition = '', method = 'iqr') {
         ? 'flagged'
         : 'within';
     flag.fraction = flag.tested ? flag.deviating / flag.tested : 0;
+  }
+
+  return flags;
+}
+
+function getTemporalMeanOutlierFlags(subjects, metric, condition, minimumGroupSize, flags) {
+  const temporalMeans = [];
+
+  for (const subject of subjects) {
+    const pointsByTime = new Map();
+    for (const point of getSeries(subject, metric, condition)) {
+      if (Number.isFinite(point.time) && Number.isFinite(point.value)) {
+        pointsByTime.set(point.time, point.value);
+      }
+    }
+
+    const points = [...pointsByTime]
+      .map(([time, value]) => ({ time, value }))
+      .sort((left, right) => left.time - right.time);
+    if (points.length < 2) continue;
+
+    let area = 0;
+    for (let index = 1; index < points.length; index++) {
+      const previous = points[index - 1];
+      const current = points[index];
+      area += (current.time - previous.time) * (previous.value + current.value) / 2;
+    }
+
+    const duration = points.at(-1).time - points[0].time;
+    if (duration > 0) temporalMeans.push({ subjectId: subject.id, value: area / duration });
+  }
+
+  if (temporalMeans.length < minimumGroupSize) return flags;
+
+  const means = temporalMeans.map(item => item.value);
+  const firstQuartile = percentile(means, 0.25);
+  const thirdQuartile = percentile(means, 0.75);
+  const iqr = thirdQuartile - firstQuartile;
+  const lowerFence = firstQuartile - 1.5 * iqr;
+  const upperFence = thirdQuartile + 1.5 * iqr;
+
+  for (const item of temporalMeans) {
+    const isOutlier = item.value < lowerFence || item.value > upperFence;
+    flags.set(item.subjectId, {
+      status: isOutlier ? 'flagged' : 'within',
+      tested: 1,
+      deviating: isOutlier ? 1 : 0,
+      fraction: isOutlier ? 1 : 0,
+      temporalMean: item.value,
+      lowerFence,
+      upperFence
+    });
   }
 
   return flags;

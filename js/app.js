@@ -284,7 +284,15 @@ function renderSubjectTable() {
 function describeOutlierFlag(flag, method) {
   if (flag?.status === 'disabled') return 'Rilevamento automatico disattivato. La selezione dei soggetti resta manuale.';
   if (!flag || flag.status === 'insufficient') {
+    if (method === 'mean-iqr') return 'Non valutabile: servono almeno 5 soggetti con almeno due istanti distinti.';
     return 'Non valutabile: servono almeno 3 istanti confrontabili con almeno 5 soggetti.';
+  }
+  if (method === 'mean-iqr') {
+    const mean = flag.temporalMean.toPrecision(4);
+    const fences = `[${flag.lowerFence.toPrecision(4)}, ${flag.upperFence.toPrecision(4)}]`;
+    return flag.status === 'flagged'
+      ? `Possibile outlier: media temporale ${mean}, fuori dai limiti IQR ${fences}. Non viene escluso automaticamente.`
+      : `Nessuna segnalazione: media temporale ${mean}, entro i limiti IQR ${fences}. Il soggetto resta incluso se selezionato.`;
   }
   const methodName = method === 'mad' ? 'z-score robusto > 3,5' : 'limiti di 1,5 × IQR';
   if (flag.status === 'flagged') {

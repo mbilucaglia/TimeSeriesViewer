@@ -111,6 +111,7 @@
           <select id="outlierMethodSelect" aria-label="Metodo di rilevamento outlier">
             <option value="iqr" selected>1,5 × IQR (Tukey)</option>
             <option value="mad">z-score robusto (MAD, soglia 3,5)</option>
+            <option value="mean-iqr">Media temporale · 1,5 × IQR</option>
             <option value="none">Disattivato</option>
           </select>
         </div>
@@ -135,7 +136,7 @@
         </div>
         <details class="outlier-help">
           <summary>Come funziona il flag</summary>
-          <p>Il metodo selezionato confronta i soggetti a ogni istante, per la metrica e la condizione correnti. Un soggetto viene segnalato se supera la soglia in almeno il 10% degli istanti valutabili (minimo 3), con almeno 5 soggetti confrontabili. Il flag è informativo: non modifica selezione o media.</p>
+          <p>I metodi IQR e MAD confrontano i soggetti a ogni istante e segnalano chi supera la soglia in almeno il 10% degli istanti valutabili (minimo 3), con almeno 5 soggetti confrontabili. “Media temporale · 1,5 × IQR” calcola invece una media ponderata nel tempo per ciascun soggetto, poi applica l’IQR alla distribuzione di queste medie (almeno 5 soggetti). Usa i tempi reali dei campioni. Il flag è informativo: non modifica selezione o media.</p>
         </details>
       </aside>
     </main>
