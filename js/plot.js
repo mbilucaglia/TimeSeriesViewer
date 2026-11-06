@@ -1,7 +1,7 @@
 (function (global) {
 const { computeAverage, getSeries } = global.TimeSeriesData;
 
-function createPlot({ element, getState, getSelectedSubjects, getMaxPlayableTime, setCurrentTime }) {
+function createPlot({ element, getState, getSubjects, getSelectedSubjects, getMaxPlayableTime, setCurrentTime }) {
   let relayoutAt = 0;
   let relayoutInFlight = false;
   let relayoutPending = false;
@@ -11,7 +11,12 @@ function createPlot({ element, getState, getSelectedSubjects, getMaxPlayableTime
     return series.length ? Math.max(maxTime, series.at(-1).time) : maxTime;
   }, 0);
 
-  const maxTime = () => Math.max(selectedMaxTime(), getMaxPlayableTime());
+  const highlightedMaxTime = () => {
+    const subject = getSubjects().find(item => item.id === getState().highlightedSubjectId);
+    const series = getSeries(subject, getState().selectedMetric, getState().selectedCondition);
+    return series.length ? series.at(-1).time : 0;
+  };
+  const maxTime = () => Math.max(selectedMaxTime(), highlightedMaxTime(), getMaxPlayableTime());
 
   function clampTime(value) {
     const time = Number(value);
@@ -23,12 +28,19 @@ function createPlot({ element, getState, getSelectedSubjects, getMaxPlayableTime
   function buildTraces() {
     const state = getState();
     const subjects = getSelectedSubjects();
+    const highlightedSubject = state.highlightedSubjectId
+      ? getSubjects().find(subject => subject.id === state.highlightedSubjectId)
+      : null;
+    if (highlightedSubject && !subjects.some(subject => subject.id === highlightedSubject.id)) {
+      subjects.push(highlightedSubject);
+    }
     const traces = [];
 
     if (state.showIndividuals) {
       for (const subject of subjects) {
         const series = getSeries(subject, state.selectedMetric, state.selectedCondition);
         if (!series.length) continue;
+        const isHighlighted = subject.id === state.highlightedSubjectId;
 
         traces.push({
           x: series.map(point => point.time),
@@ -36,7 +48,8 @@ function createPlot({ element, getState, getSelectedSubjects, getMaxPlayableTime
           mode: 'lines',
           type: 'scattergl',
           name: subject.subjectId,
-          opacity: 0.42,
+          opacity: state.highlightedSubjectId ? isHighlighted ? 1 : 0.12 : 0.42,
+          line: { width: isHighlighted ? 3.5 : 1.2 },
           legendgroup: `subject-${subject.id}`
         });
       }

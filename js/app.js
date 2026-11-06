@@ -4,7 +4,7 @@ const { createPlot } = global.TimeSeriesPlot;
 
 const elements = Object.fromEntries([
   'signalFiles', 'videoFile', 'video', 'errors', 'subjectsTable', 'metricSelect', 'conditionSelect',
-  'conditionControl', 'conditionLabel', 'showIndividuals', 'showAverage', 'selectAllBtn', 'selectNoneBtn',
+  'conditionControl', 'conditionLabel', 'outlierMethodSelect', 'showIndividuals', 'showAverage', 'selectAllBtn', 'selectNoneBtn',
   'downloadAverageBtn', 'metaSubjects', 'metaMetrics', 'metaSelected', 'timeLabel', 'emptySubjects',
   'loadingOverlay', 'loadingDialog', 'loadingMessage'
 ].map(id => [id, document.getElementById(id)]));
@@ -19,7 +19,9 @@ const state = {
   videoUrl: null,
   showIndividuals: true,
   showAverage: true,
-  outlierFlags: new Map()
+  outlierFlags: new Map(),
+  outlierMethod: 'iqr',
+  highlightedSubjectId: null
 };
 
 let renderQueue = Promise.resolve();
@@ -35,6 +37,7 @@ const maxSignalTime = () => selectedSubjects().reduce((maximum, subject) => {
 const plot = createPlot({
   element: document.getElementById('plot'),
   getState: () => state,
+  getSubjects: () => state.subjects,
   getSelectedSubjects: selectedSubjects,
   getMaxPlayableTime: () => Math.max(maxSignalTime(), Number.isFinite(elements.video.duration) ? elements.video.duration : 0),
   setCurrentTime
@@ -49,6 +52,12 @@ function renderPlot() {
     .then(() => plot.render())
     .catch(error => showMessage(`Impossibile aggiornare il grafico: ${error.message}`));
   return renderQueue;
+}
+
+function clearHighlightedSubject() {
+  if (!state.highlightedSubjectId) return;
+  state.highlightedSubjectId = null;
+  void renderPlot();
 }
 
 function setCurrentTime(nextTime, syncVideo = true) {
@@ -87,7 +96,7 @@ function refreshSelectors() {
   const hasConditions = state.conditions.some(condition => condition !== '');
   elements.conditionControl.hidden = !hasConditions;
   elements.conditionLabel.hidden = !hasConditions;
-  state.outlierFlags = getOutlierFlags(state.subjects, state.selectedMetric, state.selectedCondition);
+  state.outlierFlags = getOutlierFlags(state.subjects, state.selectedMetric, state.selectedCondition, state.outlierMethod);
 }
 
 function replaceOptions(select, options, selectedValue) {
@@ -120,6 +129,8 @@ function renderSubjectTable() {
 
   for (const subject of state.subjects) {
     const row = document.createElement('tr');
+    row.dataset.subjectId = subject.id;
+    row.title = 'Clicca per evidenziare temporaneamente la curva; clicca fuori dalla lista per annullare.';
     const selectionCell = document.createElement('td');
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -147,8 +158,8 @@ function renderSubjectTable() {
     outlierBadge.className = `outlier-badge outlier-${outlierFlag?.status || 'insufficient'}`;
     outlierBadge.textContent = outlierFlag?.status === 'flagged'
       ? 'Possibile'
-      : outlierFlag?.status === 'within' ? 'No' : 'N/D';
-    outlierBadge.title = describeOutlierFlag(outlierFlag);
+      : outlierFlag?.status === 'within' ? 'No' : outlierFlag?.status === 'disabled' ? 'Off' : 'N/D';
+    outlierBadge.title = describeOutlierFlag(outlierFlag, state.outlierMethod);
     outlierCell.append(outlierBadge);
 
     const removeCell = document.createElement('td');
@@ -170,14 +181,16 @@ function renderSubjectTable() {
   refreshMetadata();
 }
 
-function describeOutlierFlag(flag) {
+function describeOutlierFlag(flag, method) {
+  if (flag?.status === 'disabled') return 'Rilevamento automatico disattivato. La selezione dei soggetti resta manuale.';
   if (!flag || flag.status === 'insufficient') {
     return 'Non valutabile: servono almeno 3 istanti confrontabili con almeno 5 soggetti.';
   }
+  const methodName = method === 'mad' ? 'z-score robusto > 3,5' : 'limiti di 1,5 × IQR';
   if (flag.status === 'flagged') {
-    return `Possibile outlier: ${flag.deviating} di ${flag.tested} istanti oltre la soglia (${(flag.fraction * 100).toFixed(1)}%). Non viene escluso automaticamente.`;
+    return `Possibile outlier (${methodName}): ${flag.deviating} di ${flag.tested} istanti oltre la soglia (${(flag.fraction * 100).toFixed(1)}%). Non viene escluso automaticamente.`;
   }
-  return `Nessuna segnalazione: ${flag.deviating} di ${flag.tested} istanti oltre la soglia. Il soggetto resta incluso se selezionato.`;
+  return `Nessuna segnalazione (${methodName}): ${flag.deviating} di ${flag.tested} istanti oltre la soglia. Il soggetto resta incluso se selezionato.`;
 }
 
 function refreshApp({ renderTable = true } = {}) {
@@ -322,6 +335,12 @@ elements.conditionSelect.addEventListener('change', () => {
   void refreshApp();
 });
 
+elements.outlierMethodSelect.addEventListener('change', () => {
+  state.outlierMethod = elements.outlierMethodSelect.value;
+  state.outlierFlags = getOutlierFlags(state.subjects, state.selectedMetric, state.selectedCondition, state.outlierMethod);
+  renderSubjectTable();
+});
+
 elements.showIndividuals.addEventListener('change', () => {
   state.showIndividuals = elements.showIndividuals.checked;
   void renderPlot();
@@ -372,10 +391,25 @@ elements.subjectsTable.tBodies[0].addEventListener('change', event => {
 
 elements.subjectsTable.tBodies[0].addEventListener('click', event => {
   const control = event.target.closest('[data-action="remove"]');
-  if (!control) return;
+  if (control) {
+    clearHighlightedSubject();
+    state.subjects = state.subjects.filter(item => item.id !== control.dataset.id);
+    void refreshApp();
+    return;
+  }
 
-  state.subjects = state.subjects.filter(item => item.id !== control.dataset.id);
-  void refreshApp();
+  const row = event.target.closest('tr[data-subject-id]');
+  if (row) {
+    state.highlightedSubjectId = row.dataset.subjectId;
+    void renderPlot();
+  } else {
+    clearHighlightedSubject();
+  }
+});
+
+document.addEventListener('click', event => {
+  if (event.target.closest('#subjectsTable tbody tr[data-subject-id]')) return;
+  clearHighlightedSubject();
 });
 
 elements.video.addEventListener('loadedmetadata', () => {

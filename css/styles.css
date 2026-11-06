@@ -134,6 +134,8 @@ button:active:not(:disabled) { background: #e5e0f5; }
 .meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 5px; }
 .meta-item { padding: 8px 4px; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); background: var(--surface-soft); font-size: 9px; font-weight: 600; text-align: center; white-space: nowrap; }
 .meta-selected { border-color: #d6d2ed; color: var(--accent); background: var(--accent-soft); }
+.outlier-method-control { margin-top: 12px; }
+.outlier-method-control select { width: 100%; }
 .selection-actions { display: flex; gap: 7px; margin: 12px 0 9px; }
 .selection-actions button { flex: 1; }
 .sidebar-table-wrap { min-height: 140px; max-height: none; flex: 1 1 0; overflow: auto; border: 1px solid var(--border); border-radius: 7px; scrollbar-color: #c8c5dd transparent; scrollbar-width: thin; }
@@ -142,6 +144,8 @@ th { position: sticky; top: 0; z-index: 1; padding: 10px 7px; color: var(--muted
 td { padding: 7px; border-bottom: 1px solid #e7e5f1; color: #4e4c70; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fafafe; }
+.subjects-panel tbody tr[data-subject-id] { cursor: pointer; }
+.subjects-panel tbody tr[data-subject-id]:focus-visible { outline: 2px solid #5e54a2; outline-offset: -2px; }
 td input[type="checkbox"] { accent-color: var(--accent); }
 td input[type="text"] { width: 100%; min-width: 75px; min-height: 29px; padding: 5px 6px; font-size: 10px; }
 td button { min-height: 25px; padding: 2px 6px; border-color: transparent; color: var(--danger); background: transparent; }

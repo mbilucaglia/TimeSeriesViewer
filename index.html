@@ -108,6 +108,14 @@
           <div class="meta-item"><span id="metaMetrics">Metriche: 0</span></div>
           <div class="meta-item meta-selected"><span id="metaSelected">Selezionati: 0</span></div>
         </div>
+        <div class="outlier-method-control">
+          <label class="field-label" for="outlierMethodSelect">Rilevamento outlier</label>
+          <select id="outlierMethodSelect" aria-label="Metodo di rilevamento outlier">
+            <option value="iqr" selected>1,5 × IQR (Tukey)</option>
+            <option value="mad">z-score robusto (MAD, soglia 3,5)</option>
+            <option value="none">Disattivato</option>
+          </select>
+        </div>
         <div class="selection-actions" aria-label="Selezione soggetti">
           <button id="selectAllBtn" type="button" disabled>Seleziona tutti</button>
           <button id="selectNoneBtn" type="button" disabled>Deseleziona</button>
@@ -129,7 +137,7 @@
         </div>
         <details class="outlier-help">
           <summary>Come funziona il flag</summary>
-          <p>Segnalazione esplorativa per la metrica e la condizione selezionate: z-score robusto oltre 3,5 in almeno 10% degli istanti (minimo 3), con almeno 5 soggetti confrontabili. Non esclude nessuno dalla media.</p>
+          <p>Il metodo selezionato confronta i soggetti a ogni istante, per la metrica e la condizione correnti. Un soggetto viene segnalato se supera la soglia in almeno il 10% degli istanti valutabili (minimo 3), con almeno 5 soggetti confrontabili. Il flag è informativo: non modifica selezione o media.</p>
         </details>
       </aside>
     </main>

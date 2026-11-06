@@ -34,13 +34,18 @@ function getSeries(subject, metric, condition = '') {
   return subject?.dataByMetric?.[metric]?.[condition] || [];
 }
 
-function getOutlierFlags(subjects, metric, condition = '') {
+function getOutlierFlags(subjects, metric, condition = '', method = 'iqr') {
   const minimumGroupSize = 5;
   const zThreshold = 3.5;
   const minimumDeviatingPoints = 3;
   const minimumDeviatingFraction = 0.1;
   const byTime = new Map();
   const flags = new Map(subjects.map(subject => [subject.id, { status: 'insufficient', tested: 0, deviating: 0 }]));
+
+  if (method === 'none') {
+    for (const flag of flags.values()) flag.status = 'disabled';
+    return flags;
+  }
 
   for (const subject of subjects) {
     for (const point of getSeries(subject, metric, condition)) {
@@ -57,13 +62,21 @@ function getOutlierFlags(subjects, metric, condition = '') {
     const center = median(values);
     const mad = median(values.map(value => Math.abs(value - center)));
     const zeroScaleTolerance = Number.EPSILON * Math.max(1, Math.abs(center)) * 16;
+    const firstQuartile = percentile(values, 0.25);
+    const thirdQuartile = percentile(values, 0.75);
+    const iqr = thirdQuartile - firstQuartile;
+    const lowerFence = firstQuartile - 1.5 * iqr;
+    const upperFence = thirdQuartile + 1.5 * iqr;
 
     for (const item of valuesAtTime) {
       const flag = flags.get(item.subjectId);
       flag.tested++;
       const deviation = Math.abs(item.value - center);
       const robustZ = mad > zeroScaleTolerance ? 0.6745 * deviation / mad : deviation > zeroScaleTolerance ? Infinity : 0;
-      if (robustZ > zThreshold) flag.deviating++;
+      const isOutlier = method === 'mad'
+        ? robustZ > zThreshold
+        : item.value < lowerFence || item.value > upperFence;
+      if (isOutlier) flag.deviating++;
     }
   }
 
@@ -86,6 +99,15 @@ function median(values) {
   return sorted.length % 2
     ? sorted[middle]
     : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function percentile(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * fraction;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  const weight = position - lowerIndex;
+  return sorted[lowerIndex] * (1 - weight) + sorted[upperIndex] * weight;
 }
 
 function computeAverage(subjects, metric, condition = '') {
