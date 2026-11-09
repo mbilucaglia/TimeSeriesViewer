@@ -97,6 +97,7 @@
         </div>
       </section>
 
+      <div id="viewerSidebar" class="viewer-sidebar">
       <aside class="card subjects-panel" aria-labelledby="subjectsTitle">
         <div class="subjects-heading">
           <div>
@@ -143,21 +144,26 @@
         </details>
       </aside>
       <section id="stimulusVideoCard" class="card stimulus-video-card" aria-labelledby="stimulusVideoTitle">
-        <div class="step-label"><span>03</span> STIMOLO</div>
-        <h2 id="stimulusVideoTitle" class="section-title">Video dello stimolo</h2>
-        <p id="activeStimulusVideoLabel" class="panel-note"></p>
-        <div id="videoPlaceholder" class="video-placeholder">
-          <span id="videoPlaceholderMessage">Nessun video per lo stimolo selezionato.</span>
-          <button id="loadStimulusVideoBtn" type="button">Carica video</button>
+        <div class="stimulus-video-heading">
+          <div>
+            <div class="step-label"><span>03</span> STIMOLO</div>
+            <h2 id="stimulusVideoTitle" class="section-title">Video dello stimolo</h2>
+          </div>
+          <button id="toggleStimulusVideoBtn" class="collapse-button" type="button" aria-expanded="true" aria-controls="stimulusVideoContent" aria-label="Minimizza video dello stimolo" title="Minimizza video dello stimolo">−</button>
         </div>
-        <video id="video" hidden aria-label="Video dello stimolo selezionato"></video>
-        <div id="videoControls" class="video-controls" hidden>
-          <button id="videoPlayBtn" class="video-play-button" type="button" aria-label="Riproduci video" title="Riproduci video">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path id="videoPlayIconPath" d="M8 5v14l11-7z"></path></svg>
-          </button>
-          <input id="videoSeek" type="range" min="0" max="1000" value="0" aria-label="Posizione del video" />
+        <div id="stimulusVideoContent">
+          <p id="activeStimulusVideoLabel" class="panel-note"></p>
+          <p id="videoPlaceholderMessage" class="video-empty-note">Nessun video associato allo stimolo selezionato.</p>
+          <video id="video" hidden aria-label="Video dello stimolo selezionato"></video>
+          <div id="videoControls" class="video-controls" hidden>
+            <button id="videoPlayBtn" class="video-play-button" type="button" aria-label="Riproduci video" title="Riproduci video">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path id="videoPlayIconPath" d="M8 5v14l11-7z"></path></svg>
+            </button>
+            <input id="videoSeek" type="range" min="0" max="1000" value="0" aria-label="Posizione del video" />
+          </div>
         </div>
       </section>
+      </div>
       </div>
 
       <div id="analysisPanel" class="analysis-panel tab-panel" role="tabpanel" aria-labelledby="analysisTab" hidden>
@@ -171,8 +177,8 @@
             <div class="time-indicator"><span class="time-unit">Tempo [s]</span><span id="analysisTimeLabel" class="time-readout" aria-live="off">0.00</span></div>
           </div>
           <div id="analysisChart" class="analysis-chart" aria-label="Grafico dell’analisi statistica"></div>
-          <div id="analysisVideoDockSlot" class="analysis-video-dock-slot" hidden></div>
         </section>
+        <div id="analysisSidebar" class="analysis-sidebar">
         <section class="card analysis-controls" aria-label="Controlli dell’analisi statistica">
             <fieldset class="analysis-fieldset">
               <legend class="field-label">Disegno</legend>
@@ -202,6 +208,7 @@
               <span id="analysisStatus" class="panel-note" role="status" aria-live="polite">Seleziona i soggetti nel Viewer.</span>
             </div>
         </section>
+        </div>
         <details id="analysisResultsDock" class="card analysis-results-dock">
           <summary><strong>Risultati</strong><span>Tabella dei test per ogni istante</span></summary>
           <div class="analysis-results-content">

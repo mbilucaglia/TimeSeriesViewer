@@ -43,31 +43,39 @@ p { margin: 8px 0; line-height: 1.55; }
 
 .app-layout { display: block; }
 .import-panel { display: flex; min-height: 240px; align-items: center; justify-content: center; flex-direction: column; gap: 8px; margin-bottom: 14px; text-align: center; }
-.drop-zone { border: 1px dashed #a39ccf; background: #fafafe; transition: border-color .15s ease, background .15s ease; }
-.drop-zone.is-dragging { border-color: var(--accent); background: #eeecfa; }
+.import-panel.drop-zone { min-height: 240px; padding: 24px; border: 1px dashed #a39ccf; background: #fafafe; transition: border-color .15s ease, background .15s ease; }
+.import-panel.drop-zone.is-dragging { border-color: var(--accent); background: #eeecfa; }
 .drop-zone .step-label { justify-content: center; }
 .drop-zone .section-title { margin: 0; }
 .drop-zone-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 3px; }
 .drop-status { min-height: 16px; color: var(--muted); font-size: 11px; }
-.tab-bar { position: sticky; top: 8px; z-index: 20; display: flex; width: fit-content; align-items: center; gap: 10px; margin: 2px 0 14px; padding: 5px 0; background: #f1f2f9; }
-.app-tab { min-height: 42px; padding: 9px 17px; border: 1px solid #cfd1e4; border-radius: 8px; color: var(--muted); background: #fff; box-shadow: none; font-size: 12px; }
+.tab-bar { position: sticky; top: 8px; z-index: 20; display: grid; width: min(100%, 360px); grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 10px; margin: 2px 0 14px; padding: 5px 0; background: #f1f2f9; }
+.app-tab { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid #cfd1e4; border-radius: 8px; color: var(--muted); background: #fff; box-shadow: none; font-size: 12px; }
 .app-tab.is-active { border-color: #8e87be; color: var(--accent); background: #eeecfa; box-shadow: none; }
-.viewer-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); grid-template-areas: "controls controls" "plot video" "plot subjects"; align-items: stretch; gap: 14px; }
+.viewer-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); grid-template-areas: "controls controls" "plot sidebar"; align-items: stretch; gap: 14px; }
 .controls-panel { grid-area: controls; display: grid; grid-template-columns: minmax(190px, 1fr) minmax(170px, .8fr) auto auto; align-items: end; gap: 16px; }
 .plot-panel { grid-area: plot; min-width: 0; }
+.viewer-sidebar { grid-area: sidebar; display: grid; min-height: 0; grid-template-areas: "video" "subjects"; grid-template-rows: auto minmax(0, 1fr); align-items: stretch; gap: 14px; }
 .subjects-panel {
   grid-area: subjects;
   display: flex;
-  height: auto;
-  min-height: 360px;
+  min-height: 0;
   flex-direction: column;
   overflow: hidden;
 }
-.stimulus-video-card { grid-area: video; min-width: 0; }
+.stimulus-video-card { grid-area: video; min-width: 0; min-height: 196px; align-self: start; }
+.stimulus-video-card[hidden] { display: none; }
+.stimulus-video-card.is-collapsed { min-height: 0; }
+.stimulus-video-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.stimulus-video-heading .step-label { margin-bottom: 5px; }
+.collapse-button { display: grid; width: 24px; min-height: 28px; flex: none; place-items: center; margin-left: auto; padding: 0; border: 0; border-radius: 0; color: var(--accent); background: transparent; box-shadow: none; font-size: 20px; line-height: 1; }
+.collapse-button:hover:not(:disabled) { border-color: transparent; color: var(--accent-strong); background: transparent; }
+.video-empty-note { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .stimulus-video-card #video { width: 100%; min-height: 0; max-height: 240px; margin-top: 8px; }
-.analysis-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); grid-template-areas: "plot video" "plot controls" "results results"; align-items: stretch; gap: 14px; }
+.analysis-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); grid-template-areas: "plot sidebar" "results results"; align-items: stretch; gap: 14px; }
 .analysis-plot-panel { grid-area: plot; min-width: 0; }
-.analysis-controls { grid-area: controls; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: start; gap: 14px; }
+.analysis-sidebar { grid-area: sidebar; display: grid; min-height: 0; grid-template-areas: "video" "controls"; grid-template-rows: auto minmax(0, 1fr); align-items: stretch; gap: 14px; }
+.analysis-controls { grid-area: controls; display: grid; min-height: 0; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: start; gap: 14px; overflow-y: auto; scrollbar-color: #c8c5dd transparent; scrollbar-width: thin; }
 .analysis-fieldset { grid-column: 1; }
 .analysis-targets { grid-column: 1; }
 .analysis-controls .group-assignments { grid-column: 1 / -1; }
@@ -79,13 +87,13 @@ p { margin: 8px 0; line-height: 1.55; }
 .analysis-input { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
 .analysis-input input { width: 120px; min-height: 35px; padding: 7px 9px; border: 1px solid #cccde2; border-radius: 6px; color: #25234a; font-size: 12px; }
 .analysis-selected-target { min-height: 50px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 7px; color: var(--accent); background: var(--accent-soft); font-size: 12px; font-weight: 600; }
-.group-assignments { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.group-assignments { display: flex; max-height: 390px; min-height: 0; flex-direction: column; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); overflow: hidden; }
 .group-actions { margin-bottom: 8px; }
-.group-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.group-chips { display: flex; max-height: 88px; flex: none; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; overflow: auto; }
 .group-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 5px 4px 9px; border: 1px solid #d6d2ed; border-radius: 7px; background: var(--accent-soft); }
 .group-chip input { width: 110px; min-height: 28px; padding: 4px 5px; border: 1px solid transparent; border-radius: 4px; background: transparent; font-size: 11px; }
 .group-chip button { min-height: 25px; padding: 2px 6px; color: var(--danger); }
-.group-assignment-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 7px; }
+.group-assignment-rows { display: grid; max-height: 230px; min-height: 0; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-content: start; gap: 7px; padding-right: 4px; overflow: auto; overscroll-behavior: contain; scrollbar-color: #c8c5dd transparent; scrollbar-width: thin; }
 .group-assignment { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; }
 .group-assignment select { max-width: 140px; min-height: 30px; padding: 4px 7px; }
 .analysis-actions { grid-column: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 16px; }
@@ -93,7 +101,6 @@ p { margin: 8px 0; line-height: 1.55; }
 .analysis-results { margin-top: 15px; }
 .analysis-chart { grid-area: chart; width: 100%; min-width: 0; min-height: 470px; }
 .analysis-chart:empty { display: none; }
-.analysis-video-dock-slot { margin-top: 10px; }
 .analysis-summary { margin-bottom: 12px; padding: 10px 12px; border: 1px solid #d6d2ed; border-radius: 7px; color: var(--muted); background: var(--surface-soft); font-size: 11px; line-height: 1.5; }
 .analysis-table-wrap { max-height: 440px; overflow: auto; border: 1px solid var(--border); border-radius: 7px; }
 .analysis-table th { top: 0; }
@@ -250,13 +257,15 @@ td .trace-isolate-button:hover:not(:disabled), td .trace-isolate-button[aria-pre
 }
 
 @media (max-width: 800px) {
-  .viewer-panel { grid-template-columns: minmax(0, 1fr); grid-template-areas: "controls" "plot" "video" "subjects"; }
-  .analysis-panel { grid-template-columns: minmax(0, 1fr); grid-template-areas: "plot" "video" "controls" "results"; }
-  .analysis-controls { grid-template-columns: minmax(0, 1fr); }
+  .viewer-panel { grid-template-columns: minmax(0, 1fr); grid-template-areas: "controls" "plot" "sidebar"; }
+  .viewer-sidebar { grid-template-rows: auto auto; }
+  .analysis-panel { grid-template-columns: minmax(0, 1fr); grid-template-areas: "plot" "sidebar" "results"; }
+  .analysis-sidebar { grid-template-rows: auto auto; }
+  .analysis-controls { min-height: 0; grid-template-columns: minmax(0, 1fr); overflow: visible; }
   .analysis-fieldset, .analysis-targets, .analysis-assignments, .analysis-actions { grid-column: 1; }
   .analysis-chart { min-height: 430px; }
   .import-panel { padding: 20px 14px; }
-  .subjects-panel { min-height: 360px; }
+  .subjects-panel { height: auto; min-height: 360px; }
   #plot { height: 430px; }
 }
 

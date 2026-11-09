@@ -10,7 +10,7 @@ const elements = Object.fromEntries([
   'loadingOverlay', 'loadingDialog', 'loadingMessage', 'viewerTab', 'analysisTab', 'viewerPanel', 'analysisPanel',
   'analysisTargets', 'nullValueControl', 'nullValue', 'permutationCount', 'groupAssignments', 'groupChips',
   'groupAssignmentRows', 'addGroupBtn', 'runAnalysisBtn', 'downloadAnalysisBtn', 'analysisStatus', 'analysisResults', 'analysisChart', 'significantOnly',
-  'viewerVideoDockSlot', 'analysisVideoDockSlot', 'videoStimulusAssignments', 'stimulusVideoCard', 'activeStimulusVideoLabel', 'videoPlaceholder', 'videoPlaceholderMessage', 'loadStimulusVideoBtn', 'videoControls', 'videoSeek', 'videoPlayBtn', 'videoPlayIconPath',
+  'viewerVideoDockSlot', 'viewerSidebar', 'analysisSidebar', 'videoStimulusAssignments', 'stimulusVideoCard', 'stimulusVideoContent', 'toggleStimulusVideoBtn', 'activeStimulusVideoLabel', 'videoPlaceholderMessage', 'videoControls', 'videoSeek', 'videoPlayBtn', 'videoPlayIconPath',
   'signalDropZone', 'loadDemoBtn', 'dropStatus'
 ].map(id => [id, document.getElementById(id)]));
 
@@ -21,6 +21,7 @@ const state = {
   selectedMetric: '',
   selectedCondition: '',
   currentTime: 0,
+  stimulusVideoExpanded: true,
   videoUrl: null,
   videoUrlsByStimulus: new Map(),
   showIndividuals: true,
@@ -490,23 +491,25 @@ function syncVideoPlayerCard() {
   const analysis = !elements.analysisPanel.hidden;
   const hasVideo = Boolean(state.videoUrl);
   elements.stimulusVideoCard.hidden = false;
-  elements.videoPlaceholder.hidden = hasVideo;
+  elements.stimulusVideoCard.classList.toggle('is-collapsed', !state.stimulusVideoExpanded);
+  elements.activeStimulusVideoLabel.hidden = !hasVideo;
+  elements.stimulusVideoContent.hidden = !state.stimulusVideoExpanded;
+  elements.toggleStimulusVideoBtn.textContent = state.stimulusVideoExpanded ? '−' : '+';
+  elements.toggleStimulusVideoBtn.setAttribute('aria-expanded', String(state.stimulusVideoExpanded));
+  elements.toggleStimulusVideoBtn.setAttribute('aria-label', `${state.stimulusVideoExpanded ? 'Minimizza' : 'Espandi'} video dello stimolo`);
+  elements.toggleStimulusVideoBtn.title = `${state.stimulusVideoExpanded ? 'Minimizza' : 'Espandi'} video dello stimolo`;
+  elements.videoPlaceholderMessage.hidden = hasVideo;
   elements.video.hidden = !hasVideo;
   elements.videoControls.hidden = !hasVideo;
-  const hasStimuli = getStimulusOptions().length > 0;
-  elements.loadStimulusVideoBtn.disabled = !hasStimuli;
-  elements.videoPlaceholderMessage.textContent = hasStimuli
-    ? 'Nessun video per lo stimolo selezionato.'
-    : 'Carica prima un file segnali per associare il video a uno stimolo.';
+  elements.videoPlaceholderMessage.textContent = getStimulusOptions().length
+    ? 'Nessun video associato allo stimolo selezionato. Collegalo dal Viewer.'
+    : 'Carica un file segnali per visualizzare il video dello stimolo.';
   updateVideoPlayButton();
-  (analysis ? elements.analysisPanel : elements.viewerPanel).append(elements.stimulusVideoCard);
+  (analysis ? elements.analysisSidebar : elements.viewerSidebar).prepend(elements.stimulusVideoCard);
 }
 
-function syncVideoDock(tab) {
-  const showAnalysisVideo = tab === 'analysis';
-  elements.analysisVideoDockSlot.hidden = !showAnalysisVideo;
-  (showAnalysisVideo ? elements.analysisVideoDockSlot : elements.viewerVideoDockSlot)
-    .append(document.getElementById('videoDock'));
+function syncVideoDock() {
+  elements.viewerVideoDockSlot.append(document.getElementById('videoDock'));
 }
 
 function getStimulusOptions() {
@@ -1187,14 +1190,10 @@ elements.videoSeek.addEventListener('input', () => {
   elements.video.currentTime = time;
   setCurrentTime(time, false);
 });
-elements.loadStimulusVideoBtn.addEventListener('click', () => {
-  const dock = document.getElementById('videoDock');
-  const preferredStimulus = state.selectedCondition || getStimulusOptions()[0];
-  const input = [...elements.videoStimulusAssignments.querySelectorAll('[data-action="assign-video"]')]
-    .find(item => item.dataset.stimulus === preferredStimulus);
-  if (!dock || !input) return;
-  dock.open = true;
-  requestAnimationFrame(() => input.click());
+elements.toggleStimulusVideoBtn.addEventListener('click', () => {
+  state.stimulusVideoExpanded = !state.stimulusVideoExpanded;
+  if (!state.stimulusVideoExpanded && !elements.video.paused) elements.video.pause();
+  syncVideoPlayerCard();
 });
 
 window.addEventListener('pagehide', () => {
