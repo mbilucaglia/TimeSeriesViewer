@@ -27,22 +27,26 @@
     </header>
 
     <main class="app-layout">
-      <section class="card import-panel" aria-labelledby="importTitle">
-        <div class="import-copy">
-          <div class="step-label"><span>01</span> INIZIA</div>
-          <h2 id="importTitle" class="section-title">Carica i dati della sessione</h2>
-          <p class="panel-note">Importa una serie temporale per attivare grafico, selezione dei soggetti e statistiche.</p>
+      <section id="signalDropZone" class="card import-panel drop-zone" aria-labelledby="importTitle">
+        <div class="step-label"><span>01</span> INIZIA</div>
+        <h2 id="importTitle" class="section-title">Trascina qui file segnali o video</h2>
+        <p class="panel-note">Segnali CSV, TSV o Excel. Per abbinare i video, includi nel nome il codice dello stimolo, per esempio <code>stim_arancia</code>.</p>
+        <div class="drop-zone-actions">
+          <label class="file file-primary">
+            <span class="file-icon" aria-hidden="true">＋</span> Scegli file segnali
+            <input id="signalFiles" type="file" accept=".csv,.txt,.tsv,.xlsx,.xls" aria-label="Carica file segnali CSV, TXT, TSV o Excel" />
+          </label>
+          <button id="loadDemoBtn" type="button">Prova un esempio</button>
         </div>
-        <label class="file file-primary">
-          <span class="file-icon" aria-hidden="true">＋</span> Scegli file segnali
-          <input id="signalFiles" type="file" accept=".csv,.txt,.tsv,.xlsx,.xls" aria-label="Carica file segnali CSV, TXT, TSV o Excel" />
-        </label>
-        <div class="format-hints">
-          <span>CSV/TXT/TSV: <code>time_s, subject_id, metriche…</code></span>
-          <span>XLSX: un foglio per serie, con colonna <code>Time [s]</code></span>
-          <span>Nei workbook, metrica e condizione vengono dal nome del foglio.</span>
-        </div>
+        <span id="dropStatus" class="drop-status" aria-live="polite">Nessun file selezionato.</span>
       </section>
+
+      <nav class="tab-bar" role="tablist" aria-label="Sezioni del viewer">
+        <button id="viewerTab" class="app-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="viewerPanel">Viewer</button>
+        <button id="analysisTab" class="app-tab" type="button" role="tab" aria-selected="false" aria-controls="analysisPanel">Analisi statistiche</button>
+      </nav>
+
+      <div id="viewerPanel" class="tab-panel viewer-panel" role="tabpanel" aria-labelledby="viewerTab">
 
       <section class="card controls-panel" aria-label="Impostazioni del grafico">
         <div class="control-block metric-control">
@@ -70,7 +74,7 @@
             <div class="step-label"><span>02</span> ESPLORA</div>
             <h2 id="plotTitle" class="section-title">Segnali nel tempo</h2>
           </div>
-          <span id="timeLabel" class="time-readout" aria-live="off">0.00 <small>s</small></span>
+          <div class="time-indicator"><span class="time-unit">Tempo [s]</span><span id="timeLabel" class="time-readout" aria-live="off">0.00</span></div>
         </div>
 
         <div id="plotWrap" class="plot-wrap">
@@ -82,16 +86,15 @@
           <span class="ci-note">La banda mostra l’intervallo di confidenza al 95%; richiede almeno 2 soggetti selezionati.</span>
         </div>
 
-        <details class="video-dock">
-          <summary><span class="step-label"><span>03</span> OPZIONALE</span><strong>Collega un video</strong><span class="video-summary-note">Sincronizza la riproduzione con il cursore temporale</span></summary>
+        <div id="viewerVideoDockSlot">
+        <details id="videoDock" class="video-dock">
+          <summary><span class="step-label"><span>03</span> OPZIONALE</span><strong>Collega video agli stimoli</strong><span class="video-summary-note">Ogni stimolo può avere il proprio video sincronizzato</span></summary>
           <div class="video-content">
-            <label class="file">
-              <span class="file-icon" aria-hidden="true">▶</span> Scegli file video
-              <input id="videoFile" type="file" accept="video/*" aria-label="Carica file video" />
-            </label>
-            <video id="video" controls aria-label="Video caricato"></video>
+            <p class="panel-note">Associa un file a ciascuno stimolo. Il player segue lo stimolo selezionato nel Viewer.</p>
+            <div id="videoStimulusAssignments" class="video-assignment-list"></div>
           </div>
         </details>
+        </div>
       </section>
 
       <aside class="card subjects-panel" aria-labelledby="subjectsTitle">
@@ -139,6 +142,74 @@
           <p>I metodi IQR e MAD confrontano i soggetti a ogni istante e segnalano chi supera la soglia in almeno il 10% degli istanti valutabili (minimo 3), con almeno 5 soggetti confrontabili. “Media temporale · 1,5 × IQR” calcola invece una media ponderata nel tempo per ciascun soggetto, poi applica l’IQR alla distribuzione di queste medie (almeno 5 soggetti). Usa i tempi reali dei campioni. Il flag è informativo: non modifica selezione o media.</p>
         </details>
       </aside>
+      <section id="stimulusVideoCard" class="card stimulus-video-card" aria-labelledby="stimulusVideoTitle">
+        <div class="step-label"><span>03</span> STIMOLO</div>
+        <h2 id="stimulusVideoTitle" class="section-title">Video dello stimolo</h2>
+        <p id="activeStimulusVideoLabel" class="panel-note"></p>
+        <div id="videoPlaceholder" class="video-placeholder">
+          <span id="videoPlaceholderMessage">Nessun video per lo stimolo selezionato.</span>
+          <button id="loadStimulusVideoBtn" type="button">Carica video</button>
+        </div>
+        <video id="video" hidden aria-label="Video dello stimolo selezionato"></video>
+        <div id="videoControls" class="video-controls" hidden>
+          <button id="videoPlayBtn" class="video-play-button" type="button" aria-label="Riproduci video" title="Riproduci video">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path id="videoPlayIconPath" d="M8 5v14l11-7z"></path></svg>
+          </button>
+          <input id="videoSeek" type="range" min="0" max="1000" value="0" aria-label="Posizione del video" />
+        </div>
+      </section>
+      </div>
+
+      <div id="analysisPanel" class="analysis-panel tab-panel" role="tabpanel" aria-labelledby="analysisTab" hidden>
+        <section class="card analysis-plot-panel" aria-labelledby="analysisTitle">
+          <div class="panel-heading-inline analysis-panel-heading">
+            <div class="panel-heading">
+              <div class="step-label"><span>05</span> INFERENZA</div>
+              <h2 id="analysisTitle" class="section-title">Permutation test mass univariate</h2>
+              <p class="panel-note">Usa i soggetti selezionati e la sola combinazione metrica × stimolo attiva nel Viewer.</p>
+            </div>
+            <div class="time-indicator"><span class="time-unit">Tempo [s]</span><span id="analysisTimeLabel" class="time-readout" aria-live="off">0.00</span></div>
+          </div>
+          <div id="analysisChart" class="analysis-chart" aria-label="Grafico dell’analisi statistica"></div>
+          <div id="analysisVideoDockSlot" class="analysis-video-dock-slot" hidden></div>
+        </section>
+        <section class="card analysis-controls" aria-label="Controlli dell’analisi statistica">
+            <fieldset class="analysis-fieldset">
+              <legend class="field-label">Disegno</legend>
+              <label class="check-option"><input type="radio" name="analysisMode" value="one" checked /> <span>Un gruppo · test contro il valore nullo</span></label>
+              <label class="check-option"><input type="radio" name="analysisMode" value="multi" /> <span>Più gruppi indipendenti · test omnibus</span></label>
+              <label id="nullValueControl" class="analysis-input">Valore nullo
+                <input id="nullValue" type="number" value="0" step="any" />
+              </label>
+              <label class="analysis-input">Permutazioni
+                <input id="permutationCount" type="number" value="5000" min="100" max="50000" step="100" />
+              </label>
+            </fieldset>
+            <div class="analysis-targets">
+              <div class="field-label">Serie selezionata nel Viewer</div>
+              <div id="analysisTargets" class="analysis-selected-target">Carica i dati e seleziona una metrica e uno stimolo nel Viewer.</div>
+            </div>
+            <div id="groupAssignments" class="group-assignments" hidden>
+              <div class="field-label">Assegna ogni soggetto selezionato a un gruppo</div>
+              <div class="group-actions"><button id="addGroupBtn" type="button">＋ Aggiungi gruppo</button></div>
+              <div id="groupChips" class="group-chips"></div>
+              <div id="groupAssignmentRows" class="group-assignment-rows"></div>
+              <p class="panel-note">Il test omnibus confronta i gruppi e non identifica quali coppie differiscono.</p>
+            </div>
+            <div class="analysis-actions">
+              <button id="runAnalysisBtn" class="export-button" type="button" disabled>Esegui analisi</button>
+              <button id="downloadAnalysisBtn" type="button" disabled>Esporta CSV</button>
+              <span id="analysisStatus" class="panel-note" role="status" aria-live="polite">Seleziona i soggetti nel Viewer.</span>
+            </div>
+        </section>
+        <details id="analysisResultsDock" class="card analysis-results-dock">
+          <summary><strong>Risultati</strong><span>Tabella dei test per ogni istante</span></summary>
+          <div class="analysis-results-content">
+            <label class="significant-filter"><input id="significantOnly" type="checkbox" /> Mostra solo gli istanti significativi (p max-T ≤ 0,05)</label>
+            <div id="analysisResults" class="analysis-results"></div>
+          </div>
+        </details>
+      </div>
     </main>
   </div>
 
@@ -154,6 +225,8 @@
 
   <script defer src="js/data.js"></script>
   <script defer src="js/plot.js"></script>
+  <script defer src="js/permutation.js"></script>
+  <script defer src="js/demo-assets.js"></script>
   <script defer src="js/app.js"></script>
 </body>
 </html>
